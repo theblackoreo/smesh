@@ -113,7 +113,7 @@ port = 12345
 
 # Avvia la ricezione dei messaggi in broadcast sulla porta specificata
 # 16 byte key
-key = b'\xec\xb97x\x08p{\x91\x86\xf6`N\xfe9\x81\xf0'
+key = b'\xec\xb97x\x08p{\x91\x86\xf6`N\xfe9\x81\xf1'
 receive_broadcast(port, key)
 
 # msg types: 1 = origin_update
