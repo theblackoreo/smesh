@@ -36,7 +36,7 @@ def decrypt_message(encrypted_message, key):
     message = unpadder.update(padded_data)
     message += unpadder.finalize()
 
-    return message.decode('utf-8')
+    return message
 
 def encrypt_message(message, key):
     
