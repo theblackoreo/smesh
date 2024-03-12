@@ -32,7 +32,7 @@ def send_broadcast(msg, port):
                 dest = (indirizzo_broadcast, port)
                 
                 sock.sendto(msg.encode(), dest)
-
+                print("Message sent in broadcast")
                 sock.close()
 
 #decrypt message received using symmetric shared key
