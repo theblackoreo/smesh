@@ -74,10 +74,10 @@ def receive_broadcast(port, key):
         rcv_msg.ParseFromString(msg_decrypted)
 
         # add the msg_id to the list of processed messages to avoid processing the same message multiple times
-        msg_id_processed.append(rcv_msg.msg_id)
 
         if(rcv_msg.msg_type == 1 and rcv_msg.msg_id not in msg_id_processed):
-            
+            msg_id_processed.append(rcv_msg.msg_id)
+
             # Now you can access the fields of the received message
             origin_ip = rcv_msg.ip_origin
             sender_ip = rcv_msg.ip_sender
