@@ -90,6 +90,7 @@ def receive_broadcast(port, key):
             
 
                 # You can then use these values as needed
+                print("Message ID:", rcv_msg.msg_id)
                 print("Origin ID:", origin_ip)
                 print("Sender ID:", "192.168.1.1")
                 print("Reputation Score:", reputation_score)
