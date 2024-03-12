@@ -77,7 +77,7 @@ def receive_broadcast(port, key):
 
         if(rcv_msg.msg_type == 1 and rcv_msg.msg_id not in msg_id_processed):
             print("Message received from {}: {}".format(address, msg.decode()))
-            
+
             msg_id_processed.append(rcv_msg.msg_id)
 
             # Now you can access the fields of the received message
@@ -106,7 +106,7 @@ def receive_broadcast(port, key):
 
                 port = 12345
 
-                #send_broadcast(encrypted_message, port)
+                send_broadcast(encrypted_message, port)
             
 
         
