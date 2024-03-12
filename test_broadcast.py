@@ -59,6 +59,8 @@ def send_update():
     sender_info.ip_origin = ip_address
     sender_info.ip_sender = ip_address
     sender_info.msg_id = generate_random_number()
+    sender_info.msg_type = 1
+
     sender_info.reputation = 85
     sender_info.battery = 70
     sender_info.GPS = 1233442
