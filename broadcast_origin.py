@@ -80,7 +80,6 @@ def receive_broadcast(port, key, my_ip):
     while True:
         msg, address = sock.recvfrom(1024)
         
-        
 
         msg_decrypted = decrypt_message(msg.decode(), key)
 
@@ -112,10 +111,12 @@ def receive_broadcast(port, key, my_ip):
                     # You can then use these values as needed
                     print("Message ID:", rcv_msg.msg_id)
                     print("Origin ID:", origin_ip)
-                    print("Sender ID:", my_ip)
+                    print("Sender ID:", sender_ip)
                     print("Reputation Score:", reputation_score)
                     print("Battery Percentage:", battery_percentage)
                     print("GPS location:", gps_location)
+
+                    rcv_msg.ip_sender = my_ip
 
                     # Serialize the message to binary format
                     serialized_data = rcv_msg.SerializeToString()
