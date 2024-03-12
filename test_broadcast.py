@@ -27,7 +27,7 @@ def encrypt_message(message, key):
 
 
 
-# 165 byte key
+# 16 byte key
 key = b'\xec\xb97x\x08p{\x91\x86\xf6`N\xfe9\x81\xf0'
 
 def invia_broadcast(messaggio, port):

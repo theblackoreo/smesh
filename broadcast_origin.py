@@ -50,13 +50,13 @@ def encrypt_message(message, key):
 
     return b64encode(ciphertext).decode('utf-8')
 
-def receive_broadcast(porta, key):
+def receive_broadcast(port, key):
     #UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
-    sock.bind(('192.168.1.255', porta))
+    sock.bind(('192.168.1.255', port))
     
     print("Listeing for broadcast messages...")
 
@@ -114,7 +114,8 @@ def receive_broadcast(porta, key):
 port = 12345
 
 # Avvia la ricezione dei messaggi in broadcast sulla porta specificata
-key = b'my_secret_AES_key'
+# 16 byte key
+key = b'\xec\xb97x\x08p{\x91\x86\xf6`N\xfe9\x81\xf0'
 receive_broadcast(port, key)
 
 # msg types: 1 = origin_update
