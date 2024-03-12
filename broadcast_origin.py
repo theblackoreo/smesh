@@ -7,6 +7,19 @@ import msg_broadcast_struct_pb2 as msg_struct
 import fcntl
 import struct
 
+def get_ip_address(ifname):
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        ip_address = socket.inet_ntoa(fcntl.ioctl(
+            sock.fileno(),
+            0x8915,  # SIOCGIFADDR
+            struct.pack('256s', ifname.encode('utf-8')[:15])
+        )[20:24])
+        return ip_address
+    except Exception as e:
+        print("Error:", e)
+        return None
+
 # create a socket and send message in broadcast using UDP
 def send_broadcast(msg, port):
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -51,7 +64,7 @@ def encrypt_message(message, key):
 
     return b64encode(ciphertext).decode('utf-8')
 
-def receive_broadcast(port, key):
+def receive_broadcast(port, key, my_ip):
     #UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     
@@ -88,14 +101,14 @@ def receive_broadcast(port, key):
             battery_percentage = rcv_msg.battery
             gps_location = rcv_msg.GPS
 
-            if sender_ip != "192.168.1.1":
+            if sender_ip != my_ip:
                 # Get the hostname of the device
             
 
                 # You can then use these values as needed
                 print("Message ID:", rcv_msg.msg_id)
                 print("Origin ID:", origin_ip)
-                print("Sender ID:", "192.168.1.1")
+                print("Sender ID:", my_ip)
                 print("Reputation Score:", reputation_score)
                 print("Battery Percentage:", battery_percentage)
                 print("GPS location:", gps_location)
@@ -110,18 +123,7 @@ def receive_broadcast(port, key):
                 send_broadcast(encrypted_message, port)
             
 
-def get_ip_address(ifname):
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        ip_address = socket.inet_ntoa(fcntl.ioctl(
-            sock.fileno(),
-            0x8915,  # SIOCGIFADDR
-            struct.pack('256s', ifname.encode('utf-8')[:15])
-        )[20:24])
-        return ip_address
-    except Exception as e:
-        print("Error:", e)
-        return None
+
 
 # Get the IP address of wlan0
 wlan0_ip = get_ip_address('wlan0')
@@ -130,13 +132,12 @@ if wlan0_ip:
 else:
     print("Failed to retrieve IP address of wlan0")
 
-
 port = 12345
 
 # Avvia la ricezione dei messaggi in broadcast sulla porta specificata
 # 16 byte key
 key = b'\xec\xb97x\x08p{\x91\x86\xf6`N\xfe9\x81\xf0'
-receive_broadcast(port, key)
+receive_broadcast(port, key, my_ip)
 
 # msg types: 1 = origin_update
 
