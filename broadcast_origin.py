@@ -85,28 +85,25 @@ def receive_broadcast(port, key):
             battery_percentage = rcv_msg.battery
             gps_location = rcv_msg.GPS
 
+            if sender_ip != "192.168.1.1":
+                # Get the hostname of the device
             
-            # Get the hostname of the device
-            hostname = socket.gethostname()
 
-            # Get the IP address corresponding to the hostname
-            ip_address = socket.gethostbyname(hostname)
+                # You can then use these values as needed
+                print("Origin ID:", origin_ip)
+                print("Sender ID:", "192.168.1.1")
+                print("Reputation Score:", reputation_score)
+                print("Battery Percentage:", battery_percentage)
+                print("GPS location:", gps_location)
 
-            # You can then use these values as needed
-            print("Origin ID:", origin_ip)
-            print("Sender ID:", sender_ip)
-            print("Reputation Score:", reputation_score)
-            print("Battery Percentage:", battery_percentage)
-            print("GPS location:", gps_location)
+                # Serialize the message to binary format
+                serialized_data = rcv_msg.SerializeToString()
 
-            # Serialize the message to binary format
-            serialized_data = rcv_msg.SerializeToString()
+                encrypted_message = encrypt_message(serialized_data, key)
 
-            encrypted_message = encrypt_message(serialized_data, key)
+                port = 12345
 
-            port = 12345
-
-            send_broadcast(encrypted_message, port)
+                send_broadcast(encrypted_message, port)
             
 
         
