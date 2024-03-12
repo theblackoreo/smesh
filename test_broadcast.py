@@ -16,7 +16,7 @@ def encrypt_message(message, key):
     
     # message padding
     padder = padding.PKCS7(128).padder()
-    padded_data = padder.update(message.encode('utf-8')) + padder.finalize()
+    padded_data = padder.update(message) + padder.finalize()
 
     cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())
     encryptor = cipher.encryptor()
@@ -53,15 +53,15 @@ def send_update():
     # Get the IP address corresponding to the hostname
     ip_address = socket.gethostbyname(hostname)
 
-
+    print("IP address:", ip_address)
     # Sample data
     sender_info = msg.SenderInfo()
-    sender_info.ip_origin(ip_address)
-    sender_info.ip_sender(ip_address)
+    sender_info.ip_origin = ip_address
+    sender_info.ip_sender = ip_address
     sender_info.msg_id = generate_random_number()
     sender_info.reputation = 85
     sender_info.battery = 70
-    sender_info.gps = 1233442
+    sender_info.GPS = 1233442
 
     # Serialize the message to binary format
     serialized_data = sender_info.SerializeToString()
