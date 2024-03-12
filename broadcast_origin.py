@@ -65,6 +65,7 @@ def encrypt_message(message, key):
     return b64encode(ciphertext).decode('utf-8')
 
 def receive_broadcast(port, key, my_ip):
+    
     #UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     
@@ -79,6 +80,7 @@ def receive_broadcast(port, key, my_ip):
     while True:
         msg, address = sock.recvfrom(1024)
         
+        
 
         msg_decrypted = decrypt_message(msg.decode(), key)
 
@@ -87,41 +89,43 @@ def receive_broadcast(port, key, my_ip):
         rcv_msg = msg_struct.SenderInfo()
         rcv_msg.ParseFromString(msg_decrypted)
 
-        # add the msg_id to the list of processed messages to avoid processing the same message multiple times
+        # only to test rebroadcasting
+        if (rcv_msg.ip_sender != "192.168.1.3" and my_ip != "192.168.1.0"):
+           
+            if(rcv_msg.msg_type == 1 and rcv_msg.msg_id not in msg_id_processed):
+                print("Message received from {}: {}".format(address, msg.decode()))
+                
+                # add the msg_id to the list of processed messages to avoid processing the same message multiple times
 
-        if(rcv_msg.msg_type == 1 and rcv_msg.msg_id not in msg_id_processed):
-            print("Message received from {}: {}".format(address, msg.decode()))
-            
-            msg_id_processed.append(rcv_msg.msg_id)
+                msg_id_processed.append(rcv_msg.msg_id)
 
-            # Now you can access the fields of the received message
-            origin_ip = rcv_msg.ip_origin
-            sender_ip = rcv_msg.ip_sender
-            reputation_score = rcv_msg.reputation
-            battery_percentage = rcv_msg.battery
-            gps_location = rcv_msg.GPS
+                # Now you can access the fields of the received message
+                origin_ip = rcv_msg.ip_origin
+                sender_ip = rcv_msg.ip_sender
+                reputation_score = rcv_msg.reputation
+                battery_percentage = rcv_msg.battery
+                gps_location = rcv_msg.GPS
 
-            if sender_ip != my_ip:
-                # Get the hostname of the device
-            
+                if sender_ip != my_ip:
+                
 
-                # You can then use these values as needed
-                print("Message ID:", rcv_msg.msg_id)
-                print("Origin ID:", origin_ip)
-                print("Sender ID:", my_ip)
-                print("Reputation Score:", reputation_score)
-                print("Battery Percentage:", battery_percentage)
-                print("GPS location:", gps_location)
+                    # You can then use these values as needed
+                    print("Message ID:", rcv_msg.msg_id)
+                    print("Origin ID:", origin_ip)
+                    print("Sender ID:", my_ip)
+                    print("Reputation Score:", reputation_score)
+                    print("Battery Percentage:", battery_percentage)
+                    print("GPS location:", gps_location)
 
-                # Serialize the message to binary format
-                serialized_data = rcv_msg.SerializeToString()
+                    # Serialize the message to binary format
+                    serialized_data = rcv_msg.SerializeToString()
 
-                encrypted_message = encrypt_message(serialized_data, key)
+                    encrypted_message = encrypt_message(serialized_data, key)
 
-                port = 12345
+                    port = 12345
 
-                send_broadcast(encrypted_message, port)
-            
+                    send_broadcast(encrypted_message, port)
+                
 
 
 
