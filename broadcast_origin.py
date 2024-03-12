@@ -137,7 +137,7 @@ port = 12345
 # Avvia la ricezione dei messaggi in broadcast sulla porta specificata
 # 16 byte key
 key = b'\xec\xb97x\x08p{\x91\x86\xf6`N\xfe9\x81\xf0'
-receive_broadcast(port, key, my_ip)
+receive_broadcast(port, key, wlan0_ip)
 
 # msg types: 1 = origin_update
 
