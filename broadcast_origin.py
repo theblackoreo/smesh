@@ -64,7 +64,7 @@ def receive_broadcast(port, key):
     
     while True:
         msg, address = sock.recvfrom(1024)
-        print("Message received from {}: {}".format(address, msg.decode()))
+        
 
         msg_decrypted = decrypt_message(msg.decode(), key)
 
@@ -76,6 +76,8 @@ def receive_broadcast(port, key):
         # add the msg_id to the list of processed messages to avoid processing the same message multiple times
 
         if(rcv_msg.msg_type == 1 and rcv_msg.msg_id not in msg_id_processed):
+            print("Message received from {}: {}".format(address, msg.decode()))
+            
             msg_id_processed.append(rcv_msg.msg_id)
 
             # Now you can access the fields of the received message
