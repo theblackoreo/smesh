@@ -103,7 +103,7 @@ def receive_broadcast(port, key):
 
                 port = 12345
 
-                send_broadcast(encrypted_message, port)
+                #send_broadcast(encrypted_message, port)
             
 
         
