@@ -97,17 +97,16 @@ def receive_broadcast(port, key):
             print("Sender ID:", sender_ip)
             print("Reputation Score:", reputation_score)
             print("Battery Percentage:", battery_percentage)
-            print("Battery Status:", gps_location)
-
-            encrypted_message = encrypt_message(rcv_msg, key)
+            print("GPS location:", gps_location)
 
             # Serialize the message to binary format
             serialized_data = rcv_msg.SerializeToString()
 
+            encrypted_message = encrypt_message(serialized_data, key)
 
-            porta = 12345
+            port = 12345
 
-            send_broadcast(encrypted_message, porta)
+            send_broadcast(encrypted_message, port)
 
         
 
