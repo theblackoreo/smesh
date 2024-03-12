@@ -76,7 +76,7 @@ def receive_broadcast(port, key):
         # add the msg_id to the list of processed messages to avoid processing the same message multiple times
         msg_id_processed.append(rcv_msg.msg_id)
 
-        if(rcv_msg.type == 1 and rcv_msg.ip_sender not in msg_id_processed):
+        if(rcv_msg.msg_type == 1 and rcv_msg.ip_sender not in msg_id_processed):
             
             # Now you can access the fields of the received message
             origin_ip = rcv_msg.ip_origin
