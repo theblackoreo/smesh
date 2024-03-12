@@ -4,7 +4,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
 from base64 import b64encode, b64decode
 import msg_broadcast_struct_pb2 as msg_struct
-
+import fcntl
+import struct
 
 # create a socket and send message in broadcast using UDP
 def send_broadcast(msg, port):
@@ -77,7 +78,7 @@ def receive_broadcast(port, key):
 
         if(rcv_msg.msg_type == 1 and rcv_msg.msg_id not in msg_id_processed):
             print("Message received from {}: {}".format(address, msg.decode()))
-
+            
             msg_id_processed.append(rcv_msg.msg_id)
 
             # Now you can access the fields of the received message
@@ -109,7 +110,26 @@ def receive_broadcast(port, key):
                 send_broadcast(encrypted_message, port)
             
 
-        
+def get_ip_address(ifname):
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        ip_address = socket.inet_ntoa(fcntl.ioctl(
+            sock.fileno(),
+            0x8915,  # SIOCGIFADDR
+            struct.pack('256s', ifname[:15])
+        )[20:24])
+        return ip_address
+    except Exception as e:
+        print("Error:", e)
+        return None
+
+# Get the IP address of wlan0
+wlan0_ip = get_ip_address('wlan0')
+if wlan0_ip:
+    print("IP address of wlan0:", wlan0_ip)
+else:
+    print("Failed to retrieve IP address of wlan0")
+
 
 port = 12345
 

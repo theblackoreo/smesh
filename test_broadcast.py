@@ -77,6 +77,9 @@ def send_update():
     # Invia il messaggio in broadcast sulla porta specificata
     invia_broadcast(encrypted_message, port)
 
+
+
+
 while True:
         # Genera un tempo casuale tra 1 e 10 secondi
         random_time = random.uniform(1, 10)
