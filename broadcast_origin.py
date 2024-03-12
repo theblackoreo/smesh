@@ -116,7 +116,7 @@ def get_ip_address(ifname):
         ip_address = socket.inet_ntoa(fcntl.ioctl(
             sock.fileno(),
             0x8915,  # SIOCGIFADDR
-            struct.pack('256s', ifname[:15])
+            struct.pack('256s', ifname.encode('utf-8')[:15])
         )[20:24])
         return ip_address
     except Exception as e:
