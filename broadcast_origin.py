@@ -89,7 +89,7 @@ def receive_broadcast(port, key, my_ip):
         rcv_msg.ParseFromString(msg_decrypted)
 
         # only to test rebroadcasting
-        if ((rcv_msg.ip_sender == "192.168.1.3" and my_ip == "192.168.1.1") or (rcv_msg.ip_sender == "192.168.1.3" and my_ip == "192.168.1.0")):
+        if ((rcv_msg.ip_sender == "192.168.1.3" and my_ip == "192.168.1.1") or (rcv_msg.ip_sender == "192.168.1.1" and my_ip == "192.168.1.0")):
            
             if(rcv_msg.msg_type == 1 and rcv_msg.msg_id not in msg_id_processed):
                 print("Message received from {}: {}".format(address, msg.decode()))
