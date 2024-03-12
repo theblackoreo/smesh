@@ -51,7 +51,7 @@ def send_update():
     hostname = socket.gethostname()
 
     # Get the IP address corresponding to the hostname
-    ip_address = socket.gethostbyname(hostname)
+    ip_address = "192.168.1.3"
 
     print("IP address:", ip_address)
     # Sample data

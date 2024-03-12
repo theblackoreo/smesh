@@ -42,7 +42,7 @@ def encrypt_message(message, key):
     
     #adding padding
     padder = padding.PKCS7(128).padder()
-    padded_data = padder.update(message.encode('utf-8')) + padder.finalize()
+    padded_data = padder.update(message) + padder.finalize()
 
     cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())
     encryptor = cipher.encryptor()
