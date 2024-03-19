@@ -183,12 +183,30 @@ mobility.Install(nodes);*/
     std::string decrypted_text = decrypt(encrypted_text, key);
     std::cout << "Decrypted: " << decrypted_text << std::endl;
 
+
+
+    Address address;
+  u_int16_t rep_origin, GPS, battery; 
+  Ipv4Address IP_origin = InetSocketAddress::ConvertFrom(address).GetIpv4();
+  Ipv4Address IP_sender = InetSocketAddress::ConvertFrom(address).GetIpv4();
+  Ipv4Address IP_1_hop = InetSocketAddress::ConvertFrom(address).GetIpv4();
+  GPS = 1234;
+  battery = 50;
+  rep_origin = 255;
+
+  std::stringstream ss;
+  ss << "1" << IP_origin << IP_sender << IP_1_hop << rep_origin << GPS << battery;
+  std::string msg = ss.str();
+
+  std::string encrypted_text2 = encrypt(msg, key);
+  std::cout << "Encrypted2: " << encrypted_text2 << std::endl;
+
  uint16_t port = 9;
  for(uint16_t i=0; i < 3; i++){
   Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (i), TypeId::LookupByName ("ns3::UdpSocketFactory"));
   //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
   socket_sender->SetAllowBroadcast(true);
-  Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendMessage, socket_sender, port,encrypted_text);
+  Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendMessage, socket_sender, port, encrypted_text);
  }
   // Run simulation
   Simulator::Stop(Seconds(10.0));
