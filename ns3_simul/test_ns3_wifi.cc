@@ -160,7 +160,7 @@ int main (int argc, char *argv[])
  uint16_t port = 9;
  for(uint16_t i=0; i < 100; i++){
   Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (i), TypeId::LookupByName ("ns3::UdpSocketFactory"));
-  InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
+  //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
   socket_sender->SetAllowBroadcast(true);
 
   Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendMessage, socket_sender, port, plaintext);
