@@ -8,6 +8,6 @@ cp /home/fabiotagliani/Desktop/smesh/ns3_simul/test_ns3_wifi.cc /home/fabiotagli
 
 cd /home/fabiotagliani/ns-allinone-3.33/ns-3.33/
 
-./waf --run scratch/test_ns3_wifi.cc --vis
+./waf --run scratch/test_ns3_wifi.cc
 
 
