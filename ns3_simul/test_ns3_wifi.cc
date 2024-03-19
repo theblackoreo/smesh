@@ -9,6 +9,9 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <string>
+#include <sstream> // for stringstream
+
 
 
 
@@ -60,9 +63,9 @@ void sendUpdate(Ptr<Socket> socket, uint16_t port){
   GPS = 1234;
   battery = 50;
 
-    std::string IP_origin_str = IP_origin.Print();;
-
-  std::string msg = "1;" + IP_origin_str;
+  std::stringstream ss;
+  ss << "1" << IP_origin << IP_sender << IP_1_hop << rep_origin << GPS << battery;
+  std::string msg = ss.str();
 
   Ptr<Packet> packet = Create<Packet>((uint8_t*) msg.c_str(), msg.length() + 1);
 
