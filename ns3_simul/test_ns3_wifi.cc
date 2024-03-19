@@ -52,11 +52,11 @@ void sendMessage(Ptr<Socket> socket, uint16_t port , std::string msg){
 void sendUpdate(Ptr<socket> socket, uint16_t port){
   // message structure [id, IP_origin, IP_sender, IP_1_hop, rep_origin, GPS, battery%]
 
-  Address IP_origin, IP_sender, IP_1_hop, rep_origin;
+  Address address;
   u_int16_t GPS, battery; 
-  Ipv4Address IP_origin = InetSocketAddress::ConvertFrom(IP_origin).GetIpv4();
-  Ipv4Address IP_sender = InetSocketAddress::ConvertFrom(IP_sender).GetIpv4();
-  Ipv4Address IP_1_hop = InetSocketAddress::ConvertFrom(IP_1_hop).GetIpv4();
+  Ipv4Address IP_origin = InetSocketAddress::ConvertFrom(address).GetIpv4();
+  Ipv4Address IP_sender = InetSocketAddress::ConvertFrom(address).GetIpv4();
+  Ipv4Address IP_1_hop = InetSocketAddress::ConvertFrom(address).GetIpv4();
   GPS = 1234;
   battery = 50;
 
