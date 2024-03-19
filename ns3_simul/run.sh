@@ -4,7 +4,7 @@
 cd /home/fabiotagliani/Desktop/smesh
 git pull
 
-cp /home/fabiotagliani/Desktop/smesh/ns3_simul/test_ns3_wifi.cc /home/fabiotagliani/Desktop/ns-allinone-3.33/ns-3.33/scratch/
+cp /home/fabiotagliani/Desktop/smesh/ns3_simul/test_ns3_wifi.cc /home/fabiotagliani/ns-allinone-3.33/ns-3.33/scratch/
 
 cd /home/fabiotagliani/Desktop/ns-allinone-3.33/ns-3.33/
 
