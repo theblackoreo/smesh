@@ -98,14 +98,16 @@ int main (int argc, char *argv[])
 
   // Mobility of the nodes ( da rivedere )
   MobilityHelper mobility;
-  mobility.SetPositionAllocator("ns3::RandomBoxPositionAllocator",
-                                "X", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"),
-                                "Y", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"),
-                                "Z", StringValue("ns3::ConstantRandomVariable[Constant=0.0]"));
+  mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
+                                  "MinX", DoubleValue (0.0),
+                                  "MinY", DoubleValue (0.0),
+                                  "DeltaX", DoubleValue (10.0),
+                                  "DeltaY", DoubleValue (10.0),
+                                  "GridWidth", UintegerValue (3),
+                                  "LayoutType", StringValue ("RowFirst"));
 
-  mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-  mobility.Install(nodes);
-
+  mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+  mobility.Install (nodes);
 
   // Internet stack
   InternetStackHelper internet;
@@ -145,5 +147,4 @@ int main (int argc, char *argv[])
   Simulator::Stop(Seconds(10.0));
   Simulator::Run();
 
-}
 }
