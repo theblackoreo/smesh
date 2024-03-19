@@ -98,16 +98,14 @@ int main (int argc, char *argv[])
 
   // Mobility of the nodes ( da rivedere )
   MobilityHelper mobility;
-  mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
-                                  "MinX", DoubleValue (0.0),
-                                  "MinY", DoubleValue (0.0),
-                                  "DeltaX", DoubleValue (10.0),
-                                  "DeltaY", DoubleValue (10.0),
-                                  "GridWidth", UintegerValue (3),
-                                  "LayoutType", StringValue ("RowFirst"));
+mobility.SetPositionAllocator("ns3::RandomBoxPositionAllocator",
+                              "X", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"),
+                              "Y", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"),
+                              "Z", StringValue("ns3::ConstantRandomVariable[Constant=0.0]"));
 
-  mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
-  mobility.Install (nodes);
+mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+mobility.Install(nodes);
+
 
   // Internet stack
   InternetStackHelper internet;
@@ -125,27 +123,7 @@ int main (int argc, char *argv[])
     recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 9)); // Listen on port 9
     recvSocket->SetRecvCallback (MakeCallback (&ReceivePacket));
   }
-  /*
-  Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (0), UdpSocketFactory::GetTypeId ());
-  recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 9)); // Listen on port 9
-  recvSocket->SetRecvCallback (MakeCallback (&ReceivePacket));
 
-  Ptr<Socket> recvSocket2 = Socket::CreateSocket (nodes.Get (1), UdpSocketFactory::GetTypeId ());
-  recvSocket2->Bind (InetSocketAddress (Ipv4Address::GetAny (), 9)); // Listen on port 9
-  recvSocket2->SetRecvCallback (MakeCallback (&ReceivePacket));
-
-  Ptr<Socket> recvSocket3 = Socket::CreateSocket (nodes.Get (2), UdpSocketFactory::GetTypeId ());
-  recvSocket3->Bind (InetSocketAddress (Ipv4Address::GetAny (), 9)); // Listen on port 9
-  recvSocket3->SetRecvCallback (MakeCallback (&ReceivePacket));
-  */
-
-  // SENDER socket
-  /*
-  Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (2), TypeId::LookupByName ("ns3::UdpSocketFactory"));
-  InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 80);
-  socket_sender->SetAllowBroadcast(true);
-  socket_sender->Connect(remote);
-  */
  int key = 3;
    std::string plaintext = "Hello, World!";
 
@@ -162,49 +140,7 @@ int main (int argc, char *argv[])
   Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (i), TypeId::LookupByName ("ns3::UdpSocketFactory"));
   //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
   socket_sender->SetAllowBroadcast(true);
-
-  Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendMessage, socket_sender, port, plaintext);
-
- }
- 
-/*
- std::string plaintext = "Hello, World!";
-    int key = 3;
-
-    // Encrypt
-    std::string encrypted_text = encrypt(plaintext, key);
-    std::cout << "Encrypted: " << encrypted_text << std::endl;
-
-    // Decrypt
-    std::string decrypted_text = decrypt(encrypted_text, key);
-    std::cout << "Decrypted: " << decrypted_text << std::endl;
-
-  uint16_t port = 9;
-  for(uint32_t i = 0; i < 100; i++){
-    Simulator::Schedule(Seconds(2.0 + (0.1*i)), [socket_sender, port, decrypted_text]() mutable {
-    sendMessage(socket_sender, port, decrypted_text);
-  });
-  }
-  
-  // Schedule the sending of the packet after 2 seconds 
-  Simulator::Schedule(Seconds(2.0), [socket_sender, decrypted_text]() mutable {
-uint16_t port = 9;
-  sendMessage(socket_sender, port, decrypted_text);
-  
-  });
-   Simulator::Schedule(Seconds(2.1), [socket_sender2, decrypted_text]() mutable {
-uint16_t port = 9;
-  sendMessage(socket_sender2, port, decrypted_text);
-  
-  });
-
-  Simulator::Schedule(Seconds(2.2), [socket_sender3, decrypted_text]() mutable {
-uint16_t port = 9;
-    sendMessage(socket_sender3, port, decrypted_text);
-    
-    });
-*/
-
+  Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendMessage, socket_sender, port, encrypted_text);
   // Run simulation
   Simulator::Stop(Seconds(10.0));
   Simulator::Run();
