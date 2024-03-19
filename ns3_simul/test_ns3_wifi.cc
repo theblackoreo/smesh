@@ -11,6 +11,7 @@
 #include <string.h>
 
 
+
 using namespace ns3;
 
 void PrintPacketContent(Ptr<Packet> packet) {
@@ -47,6 +48,34 @@ void sendMessage(Ptr<Socket> socket, uint16_t port , std::string msg){
           std::cout << "error";
       }
 }
+
+void sendUpdate(Ptr<socket> socket, uint16_t port){
+  // message structure [id, IP_origin, IP_sender, IP_1_hop, rep_origin, GPS, battery%]
+
+  Address IP_origin, IP_sender, IP_1_hop, rep_origin;
+  u_int16_t GPS, battery; 
+  Ipv4Address IP_origin = InetSocketAddress::ConvertFrom(IP_origin).GetIpv4();
+  Ipv4Address IP_sender = InetSocketAddress::ConvertFrom(IP_sender).GetIpv4();
+  Ipv4Address IP_1_hop = InetSocketAddress::ConvertFrom(IP_1_hop).GetIpv4();
+  GPS = 1234;
+  battery = 50;
+
+  std::string msg = "1" + IP_origin + IP_sender + IP_1_hop + rep_origin + GPS + battery;
+
+  Ptr<Packet> packet = Create<Packet>((uint8_t*) msg.c_str(), msg.length() + 1);
+
+  // Send the packet in broadcast
+    if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address::GetBroadcast(), port)) != -1) {
+      } else {
+          std::cout << "error";
+      }
+
+}
+
+
+
+
+
 
 std::string encrypt(std::string plaintext, int key) {
     std::string ciphertext = "";
@@ -137,7 +166,8 @@ mobility.Install(nodes);*/
   }
 
  int key = 3;
-   std::string plaintext = "Hello, World!";
+    // message structure [id, IP_origin, IP_sender, IP_1_hop, rep_IP_origin, GPS, battery%]
+    std::string msg_plain = "Hello, World!";
 
     // Encrypt
     std::string encrypted_text = encrypt(plaintext, key);
@@ -152,7 +182,7 @@ mobility.Install(nodes);*/
   Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (i), TypeId::LookupByName ("ns3::UdpSocketFactory"));
   //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
   socket_sender->SetAllowBroadcast(true);
-  Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendMessage, socket_sender, port, encrypted_text);
+  Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendUpdate, socket_sender, port);
  }
   // Run simulation
   Simulator::Stop(Seconds(10.0));
