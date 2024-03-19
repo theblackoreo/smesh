@@ -170,7 +170,7 @@ mobility.Install(nodes);*/
     std::string msg_plain = "Hello, World!";
 
     // Encrypt
-    std::string encrypted_text = encrypt(plaintext, key);
+    std::string encrypted_text = encrypt(msg_plain, key);
     std::cout << "Encrypted: " << encrypted_text << std::endl;
 
     // Decrypt
