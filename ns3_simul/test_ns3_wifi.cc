@@ -66,7 +66,7 @@ void sendUpdate(Ptr<Socket> socket, uint16_t port){
 
   std::stringstream ss;
   ss << "1" << IP_origin << IP_sender << IP_1_hop << rep_origin << GPS << battery;
-  std::string msg = ss.str();
+  std::string msg = "1";
 
   Ptr<Packet> packet = Create<Packet>((uint8_t*) msg.c_str(), msg.length() + 1);
 
