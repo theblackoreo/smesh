@@ -78,7 +78,7 @@ int main (int argc, char *argv[])
 
   // Create nodes
   NodeContainer nodes;
-  nodes.Create(100);
+  nodes.Create(10);
 
   // Create wifi
   WifiHelper wifi;
@@ -120,7 +120,7 @@ int main (int argc, char *argv[])
 
 
   // RECEIVERs socket
-  for(uint32_t i = 0; i < 100; i++){
+  for(uint32_t i = 0; i < 10; i++){
     Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (i), UdpSocketFactory::GetTypeId ());
     recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 9)); // Listen on port 9
     recvSocket->SetRecvCallback (MakeCallback (&ReceivePacket));
@@ -158,7 +158,7 @@ int main (int argc, char *argv[])
     std::cout << "Decrypted: " << decrypted_text << std::endl;
 
  uint16_t port = 9;
- for(uint16_t i=0; i < 100; i++){
+ for(uint16_t i=0; i < 10; i++){
   Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (i), TypeId::LookupByName ("ns3::UdpSocketFactory"));
   //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
   socket_sender->SetAllowBroadcast(true);
