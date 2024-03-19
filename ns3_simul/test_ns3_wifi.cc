@@ -188,7 +188,7 @@ mobility.Install(nodes);*/
   Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (i), TypeId::LookupByName ("ns3::UdpSocketFactory"));
   //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
   socket_sender->SetAllowBroadcast(true);
-  Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendMessage, socket_sender, port,encrypted_textmn );
+  Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendMessage, socket_sender, port,encrypted_text);
  }
   // Run simulation
   Simulator::Stop(Seconds(10.0));
