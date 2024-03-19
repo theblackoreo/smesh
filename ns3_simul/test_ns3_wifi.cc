@@ -82,7 +82,7 @@ int main (int argc, char *argv[])
 
   // Create wifi
   WifiHelper wifi;
-  wifi.SetStandard(WIFI_STANDARD_80211n);
+  wifi.SetStandard(WIFI_STANDARD_H);
 
   WifiMacHelper mac;
   mac.SetType ("ns3::AdhocWifiMac");
