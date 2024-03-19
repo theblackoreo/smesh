@@ -60,7 +60,7 @@ void sendUpdate(Ptr<Socket> socket, uint16_t port){
   GPS = 1234;
   battery = 50;
 
-    std::string IP_origin_str = IP_origin.GetLocal();
+    std::string IP_origin_str = IP_origin.Print();;
 
   std::string msg = "1;" + IP_origin_str;
 
