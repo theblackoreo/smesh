@@ -57,9 +57,9 @@ void sendUpdate(Ptr<Socket> socket, uint16_t port){
 
   Address address;
   u_int16_t rep_origin, GPS, battery; 
-  Ipv4Address IP_origin = InetSocketAddress::ConvertFrom(address).GetIpv4();
-  Ipv4Address IP_sender = InetSocketAddress::ConvertFrom(address).GetIpv4();
-  Ipv4Address IP_1_hop = InetSocketAddress::ConvertFrom(address).GetIpv4();
+  Ipv4Address IP_origin = socket->GetNode()->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
+  Ipv4Address IP_sender = socket->GetNode()->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
+  Ipv4Address IP_1_hop = socket->GetNode()->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
   GPS = 1234;
   battery = 50;
   rep_origin = 255;
@@ -185,21 +185,6 @@ mobility.Install(nodes);*/
 
 
 
-    Address address;
-  u_int16_t rep_origin, GPS, battery; 
-  Ipv4Address IP_origin = InetSocketAddress::ConvertFrom(address).GetIpv4();
-  Ipv4Address IP_sender = InetSocketAddress::ConvertFrom(address).GetIpv4();
-  Ipv4Address IP_1_hop = InetSocketAddress::ConvertFrom(address).GetIpv4();
-  GPS = 1234;
-  battery = 50;
-  rep_origin = 255;
-
-  std::stringstream ss;
-  ss << "1" << IP_origin << IP_sender << IP_1_hop << rep_origin << GPS << battery;
-  std::string msg = ss.str();
-
-  std::string encrypted_text2 = encrypt(msg, key);
-  std::cout << "Encrypted2: " << encrypted_text2 << std::endl;
 
  uint16_t port = 9;
  for(uint16_t i=0; i < 3; i++){
