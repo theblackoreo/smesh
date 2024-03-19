@@ -78,7 +78,7 @@ int main (int argc, char *argv[])
 
   // Create nodes
   NodeContainer nodes;
-  nodes.Create(10);
+  nodes.Create(3);
 
   // Create wifi
   WifiHelper wifi;
@@ -98,14 +98,26 @@ int main (int argc, char *argv[])
 
   // Mobility of the nodes ( da rivedere )
   MobilityHelper mobility;
-mobility.SetPositionAllocator("ns3::RandomBoxPositionAllocator",
+  mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
+                                  "MinX", DoubleValue (0.0),
+                                  "MinY", DoubleValue (0.0),
+                                  "DeltaX", DoubleValue (200.0),
+                                  "DeltaY", DoubleValue (10.0),
+                                  "GridWidth", UintegerValue (3),
+                                  "LayoutType", StringValue ("RowFirst"));
+
+  mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+  mobility.Install (nodes);
+
+
+  //random mobility 
+  /*mobility.SetPositionAllocator("ns3::RandomBoxPositionAllocator",
                               "X", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"),
                               "Y", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"),
                               "Z", StringValue("ns3::ConstantRandomVariable[Constant=0.0]"));
 
 mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-mobility.Install(nodes);
-
+mobility.Install(nodes);*/
 
   // Internet stack
   InternetStackHelper internet;
@@ -118,7 +130,7 @@ mobility.Install(nodes);
 
 
   // RECEIVERs socket
-  for(uint32_t i = 0; i < 10; i++){
+  for(uint32_t i = 0; i < 3; i++){
     Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (i), UdpSocketFactory::GetTypeId ());
     recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 9)); // Listen on port 9
     recvSocket->SetRecvCallback (MakeCallback (&ReceivePacket));
@@ -136,12 +148,11 @@ mobility.Install(nodes);
     std::cout << "Decrypted: " << decrypted_text << std::endl;
 
  uint16_t port = 9;
- for(uint16_t i=0; i < 10; i++){
+ for(uint16_t i=0; i < 3; i++){
   Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (i), TypeId::LookupByName ("ns3::UdpSocketFactory"));
   //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
   socket_sender->SetAllowBroadcast(true);
   Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendMessage, socket_sender, port, encrypted_text);
-
  }
   // Run simulation
   Simulator::Stop(Seconds(10.0));
