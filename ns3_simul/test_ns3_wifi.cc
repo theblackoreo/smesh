@@ -56,12 +56,13 @@ void sendUpdate(Ptr<Socket> socket, uint16_t port){
   // message structure [id, IP_origin, IP_sender, IP_1_hop, rep_origin, GPS, battery%]
 
   Address address;
-  u_int16_t GPS, battery; 
+  u_int16_t rep_origin, GPS, battery; 
   Ipv4Address IP_origin = InetSocketAddress::ConvertFrom(address).GetIpv4();
   Ipv4Address IP_sender = InetSocketAddress::ConvertFrom(address).GetIpv4();
   Ipv4Address IP_1_hop = InetSocketAddress::ConvertFrom(address).GetIpv4();
   GPS = 1234;
   battery = 50;
+  rep_origin = 255;
 
   std::stringstream ss;
   ss << "1" << IP_origin << IP_sender << IP_1_hop << rep_origin << GPS << battery;
