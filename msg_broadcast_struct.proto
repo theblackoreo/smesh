@@ -2,11 +2,12 @@ syntax = "proto3";
 
 message SenderInfo {
   string ip_origin = 1;
-  string ip_sender = 2;
-  sint32 msg_id = 3;
-  sint32 msg_type = 4;
-  sint32 reputation = 5; 
-  sint32 battery = 6;
-  sint32 GPS = 7;
+  string ip_1_hop = 2;
+  string ip_sender = 3;
+  sint32 msg_id = 4;
+  sint32 msg_type = 5;
+  sint32 reputation = 6; 
+  sint32 battery = 7;
+  sint32 GPS = 8;
 }
 

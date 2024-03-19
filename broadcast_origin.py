@@ -99,24 +99,29 @@ def receive_broadcast(port, key, my_ip):
                 msg_id_processed.append(rcv_msg.msg_id)
 
                 # Now you can access the fields of the received message
-                origin_ip = rcv_msg.ip_origin
                 sender_ip = rcv_msg.ip_sender
-                reputation_score = rcv_msg.reputation
-                battery_percentage = rcv_msg.battery
-                gps_location = rcv_msg.GPS
-
-                if sender_ip != my_ip:
                 
 
+                if sender_ip != my_ip:
+
+                    origin_ip = rcv_msg.ip_origin
+                    reputation_score = rcv_msg.reputation
+                    battery_percentage = rcv_msg.battery
+                    gps_location = rcv_msg.GPS
+                    
                     # You can then use these values as needed
-                    print("Message ID:", rcv_msg.msg_id)
-                    print("Origin ID:", origin_ip)
-                    print("Sender ID:", sender_ip)
+                    print("Message IP:", rcv_msg.msg_id)
+                    print("Origin IP:", origin_ip)
+                    print("1 Hop Neigbor:", rcv_msg.ip_1_hop)
+                    print("Sender IP:", sender_ip)
                     print("Reputation Score:", reputation_score)
                     print("Battery Percentage:", battery_percentage)
                     print("GPS location:", gps_location)
 
                     rcv_msg.ip_sender = my_ip
+                    if(origin_ip ==sender_ip ):
+                         rcv_msg.ip_1_hop = my_ip
+
 
                     # Serialize the message to binary format
                     serialized_data = rcv_msg.SerializeToString()
