@@ -49,7 +49,7 @@ void sendMessage(Ptr<Socket> socket, uint16_t port , std::string msg){
       }
 }
 
-void sendUpdate(Ptr<socket> socket, uint16_t port){
+void sendUpdate(Ptr<Socket> socket, uint16_t port){
   // message structure [id, IP_origin, IP_sender, IP_1_hop, rep_origin, GPS, battery%]
 
   Address address;
