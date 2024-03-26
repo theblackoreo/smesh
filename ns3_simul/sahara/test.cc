@@ -11,6 +11,8 @@
 #include <string.h>
 #include <string>
 #include <sstream> // for stringstream
+#include <SaharaNode.h>
+
 
 
 
@@ -77,27 +79,6 @@ void sendUpdate(Ptr<Socket> socket, uint16_t port){
 
 }
 
-
-
-
-
-
-std::string encrypt(std::string plaintext, int key) {
-    std::string ciphertext = "";
-    for (char& c : plaintext) {
-        if (isalpha(c)) {
-            char base = isupper(c) ? 'A' : 'a';
-            ciphertext += static_cast<char>((c - base + key) % 26 + base);
-        } else {
-            ciphertext += c; // Keep non-alphabetic characters unchanged
-        }
-    }
-    return ciphertext;
-}
-
-std::string decrypt(std::string ciphertext, int key) {
-    return encrypt(ciphertext, -key); // Decryption is just encryption with negative key
-}
 
 
 int main (int argc, char *argv[])
@@ -188,16 +169,6 @@ staticRouting = CreateObject<Ipv4StaticRouting> ();
  int key = 3;
     // message structure [id, IP_origin, IP_sender, IP_1_hop, rep_IP_origin, GPS, battery%]
     std::string msg_plain = "Hello, World!";
-
-    // Encrypt
-    std::string encrypted_text = encrypt(msg_plain, key);
-    std::cout << "Encrypted: " << encrypted_text << std::endl;
-
-    // Decrypt
-    std::string decrypted_text = decrypt(encrypted_text, key);
-    std::cout << "Decrypted: " << decrypted_text << std::endl;
-
-
 
 
  uint16_t port = 9;

@@ -11,6 +11,11 @@
 #include <string.h>
 #include <string>
 #include <sstream> // for stringstream
+#include <iostream>
+#include "Sahara.h" // for isalpha
+#include "SaharaHelper.h" // for isalpha
+
+
 
 
 
@@ -76,8 +81,6 @@ void sendUpdate(Ptr<Socket> socket, uint16_t port){
       }
 
 }
-
-
 
 
 
@@ -158,24 +161,15 @@ mobility.Install(nodes);*/
   internet.Install(nodes);
 
   // assign IP addresses and mount a static routing table (bacuse we need to change it)
-  Ipv4AddressHelper ipv4;
-  ipv4.SetBase("10.1.1.0", "255.255.255.0");
-  Ipv4InterfaceContainer interfaces = ipv4.Assign(devices);
+  Ipv4AddressHelper ipv44;
+  ipv44.SetBase("10.1.1.0", "255.255.255.0");
+  Ipv4InterfaceContainer interfaces = ipv44.Assign(devices);
 
-  Ptr<Ipv4StaticRouting> staticRouting;
-staticRouting = CreateObject<Ipv4StaticRouting> ();
-  nodes.Get (0)->GetObject<Ipv4> ()->SetRoutingProtocol (staticRouting);
+     SaharaHelper sh;
+  //sh.Install (); 
 
-  staticRouting->AddHostRouteTo (Ipv4Address ("1.1.1.1"), Ipv4Address ("10.1.1.2"), 1); // Nodo 1 come prossimo hop per raggiungere 1.1.1.1
 
-  // Stampa della routing table del nodo 0
-  NS_LOG_UNCOND("Routing Table for Node 0:");
-  Ptr<Ipv4> ipv44 = nodes.Get(0)->GetObject<Ipv4>();
-  for (uint32_t i = 0; i < ipv44->GetRoutingProtocol(); ++i) {
-    Ipv4RoutingTableEntry entry;
-    entry = ipv44->GetRoute(i);
-    NS_LOG_UNCOND(entry);
-  }
+
 
 
   // RECEIVERs socket
@@ -189,13 +183,6 @@ staticRouting = CreateObject<Ipv4StaticRouting> ();
     // message structure [id, IP_origin, IP_sender, IP_1_hop, rep_IP_origin, GPS, battery%]
     std::string msg_plain = "Hello, World!";
 
-    // Encrypt
-    std::string encrypted_text = encrypt(msg_plain, key);
-    std::cout << "Encrypted: " << encrypted_text << std::endl;
-
-    // Decrypt
-    std::string decrypted_text = decrypt(encrypted_text, key);
-    std::cout << "Decrypted: " << decrypted_text << std::endl;
 
 
 

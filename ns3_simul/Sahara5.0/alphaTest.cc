@@ -11,8 +11,7 @@
 #include <string.h>
 #include <string>
 #include <sstream> // for stringstream
-
-
+#include <ns3/log.h>
 
 using namespace ns3;
 
@@ -39,8 +38,8 @@ void ReceivePacket(Ptr<Socket> socket) {
     }
 }
 
-void sendMessage(Ptr<Socket> socket, uint16_t port , std::string msg){
-    //std::string msg = "Hello World!";
+void sendMessage(Ptr<Socket> socket, uint16_t port){
+    std::string msg = "Hello World!";
 
       Ptr<Packet> packet = Create<Packet>((uint8_t*) msg.c_str(), msg.length() + 1);
 
@@ -51,60 +50,11 @@ void sendMessage(Ptr<Socket> socket, uint16_t port , std::string msg){
       }
 }
 
-void sendUpdate(Ptr<Socket> socket, uint16_t port){
-  // message structure [id, IP_origin, IP_sender, IP_1_hop, rep_origin, GPS, battery%]
-
-  Address address;
-  u_int16_t rep_origin, GPS, battery; 
-  Ipv4Address IP_origin = socket->GetNode()->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
-  Ipv4Address IP_sender = socket->GetNode()->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
-  Ipv4Address IP_1_hop = socket->GetNode()->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
-  GPS = 1234;
-  battery = 50;
-  rep_origin = 255;
-
-  std::stringstream ss;
-  ss << "1" << IP_origin << IP_sender << IP_1_hop << rep_origin << GPS << battery;
-  std::string msg = ss.str();
-
-  Ptr<Packet> packet = Create<Packet>((uint8_t*) msg.c_str(), msg.length() + 1);
-
-  // Send the packet in broadcast
-    if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address::GetBroadcast(), port)) != -1) {
-      } else {
-          std::cout << "error";
-      }
-
-}
-
-
-
-
-
-
-std::string encrypt(std::string plaintext, int key) {
-    std::string ciphertext = "";
-    for (char& c : plaintext) {
-        if (isalpha(c)) {
-            char base = isupper(c) ? 'A' : 'a';
-            ciphertext += static_cast<char>((c - base + key) % 26 + base);
-        } else {
-            ciphertext += c; // Keep non-alphabetic characters unchanged
-        }
-    }
-    return ciphertext;
-}
-
-std::string decrypt(std::string ciphertext, int key) {
-    return encrypt(ciphertext, -key); // Decryption is just encryption with negative key
-}
-
-
 int main (int argc, char *argv[])
 {
   // Enable logging
   //LogComponentEnable("UdpSocketImpl", LOG_LEVEL_ALL);
- // LogComponentEnable("Ipv4Interface", LOG_LEVEL_ALL);
+  LogComponentEnable("saharaRoutingProtocol", LOG_LEVEL_ALL);
 
 
   CommandLine cmd;
@@ -112,7 +62,7 @@ int main (int argc, char *argv[])
 
   // Create nodes
   NodeContainer nodes;
-  nodes.Create(3);
+  nodes.Create(4);
 
   // Create wifi
   WifiHelper wifi;
@@ -130,28 +80,18 @@ int main (int argc, char *argv[])
   
   NetDeviceContainer devices = wifi.Install(wifiPhy, mac, nodes);
 
-  // Mobility of the nodes ( da rivedere )
+  // Mobility of the nodes
   MobilityHelper mobility;
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
                                   "MinX", DoubleValue (0.0),
                                   "MinY", DoubleValue (0.0),
-                                  "DeltaX", DoubleValue (200.0),
+                                  "DeltaX", DoubleValue (10.0),
                                   "DeltaY", DoubleValue (10.0),
                                   "GridWidth", UintegerValue (3),
                                   "LayoutType", StringValue ("RowFirst"));
 
   mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
   mobility.Install (nodes);
-
-
-  //random mobility 
-  /*mobility.SetPositionAllocator("ns3::RandomBoxPositionAllocator",
-                              "X", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"),
-                              "Y", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"),
-                              "Z", StringValue("ns3::ConstantRandomVariable[Constant=0.0]"));
-
-mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-mobility.Install(nodes);*/
 
   // Internet stack
   InternetStackHelper internet;
@@ -162,22 +102,8 @@ mobility.Install(nodes);*/
   ipv4.SetBase("10.1.1.0", "255.255.255.0");
   Ipv4InterfaceContainer interfaces = ipv4.Assign(devices);
 
-  Ptr<Ipv4StaticRouting> staticRouting;
-staticRouting = CreateObject<Ipv4StaticRouting> ();
-  nodes.Get (0)->GetObject<Ipv4> ()->SetRoutingProtocol (staticRouting);
 
-  staticRouting->AddHostRouteTo (Ipv4Address ("1.1.1.1"), Ipv4Address ("10.1.1.2"), 1); // Nodo 1 come prossimo hop per raggiungere 1.1.1.1
-
-  // Stampa della routing table del nodo 0
-  NS_LOG_UNCOND("Routing Table for Node 0:");
-  Ptr<Ipv4> ipv44 = nodes.Get(0)->GetObject<Ipv4>();
-  for (uint32_t i = 0; i < ipv44->GetRoutingProtocol(); ++i) {
-    Ipv4RoutingTableEntry entry;
-    entry = ipv44->GetRoute(i);
-    NS_LOG_UNCOND(entry);
-  }
-
-
+  
   // RECEIVERs socket
   for(uint32_t i = 0; i < 3; i++){
     Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (i), UdpSocketFactory::GetTypeId ());
@@ -185,28 +111,15 @@ staticRouting = CreateObject<Ipv4StaticRouting> ();
     recvSocket->SetRecvCallback (MakeCallback (&ReceivePacket));
   }
 
- int key = 3;
-    // message structure [id, IP_origin, IP_sender, IP_1_hop, rep_IP_origin, GPS, battery%]
-    std::string msg_plain = "Hello, World!";
-
-    // Encrypt
-    std::string encrypted_text = encrypt(msg_plain, key);
-    std::cout << "Encrypted: " << encrypted_text << std::endl;
-
-    // Decrypt
-    std::string decrypted_text = decrypt(encrypted_text, key);
-    std::cout << "Decrypted: " << decrypted_text << std::endl;
-
-
-
-
  uint16_t port = 9;
  for(uint16_t i=0; i < 3; i++){
   Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (i), TypeId::LookupByName ("ns3::UdpSocketFactory"));
   //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
   socket_sender->SetAllowBroadcast(true);
-  Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendUpdate, socket_sender, port);
+  Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendMessage, socket_sender, port);
  }
+  
+
   // Run simulation
   Simulator::Stop(Seconds(10.0));
   Simulator::Run();
