@@ -16,6 +16,9 @@ cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/routingTable.h /home/parall
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/routingTable.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 
 
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaPacket.h /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaPacket.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
+
 cd /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/
 
 

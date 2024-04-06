@@ -7,6 +7,8 @@
 #include "ns3/nstime.h"
 
 #include <iostream>
+#include <cryptopp/sha.h>
+#include <cryptopp/hex.h>
 
 namespace ns3
 {
@@ -20,9 +22,8 @@ namespace sahara
  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  |                             hop1IP                            |
  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- |                   reputation | GPS | Battery                  |
+ |                         reputation | GPS                      |
  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
  */
 
 class SaharaHeader : public Header
@@ -30,9 +31,11 @@ class SaharaHeader : public Header
   public:
    
     SaharaHeader(Ipv4Address originIP = Ipv4Address(), Ipv4Address hop1IP = Ipv4Address(), 
-                        uint32_t reputation = 0,uint32_t GPS = 0, uint32_t battery = 0);
+                        uint16_t reputation_O = 0,uint16_t reputation_H = 0, uint16_t GPS_O = 0, uint16_t GPS_H=0, uint16_t battery_O = 0,
+                        uint16_t battery_H = 0);
+
     ~SaharaHeader() override;
-   
+    
     static TypeId GetTypeId();
     TypeId GetInstanceTypeId() const override;
     uint32_t GetSerializedSize() const override;
@@ -41,38 +44,41 @@ class SaharaHeader : public Header
     void Print(std::ostream& os) const override;
 
     
-    void SetOriginIP(Ipv4Address orIP)
-    {
-        m_originIP = orIP;
-    }
-
-    void SetHop1IP(Ipv4Address h1)
-    {
-        m_hop1IP = h1;
-    }
-
-
-    void SetReputation(uint32_t rep)
-    {
-        m_reputation = rep;
-    }
-
-     void SetGPS(uint32_t gps)
-    {
-        m_GPS = gps;
-    }
-
-     void SetBattery(uint32_t bat)
-    {
-       m_battery = bat;
-    }
+    void SetOriginIP(Ipv4Address orIP);
+    void SetHop1IP(Ipv4Address h1);
+    void SetReputation_O(uint16_t rep);
+    void SetGPS_O(uint16_t gps);
+    void SetBattery_O(uint16_t bat);
+    void SetReputation_H(uint16_t rep);
+    void SetGPS_H(uint16_t gps);
+    void SetBattery_H(uint16_t bat);
+    
+  
+    
+    Ipv4Address GetOriginIP();
+    Ipv4Address GetHop1IP();
+    uint16_t GetReputation_O();
+    uint16_t GetGPS_O();
+    uint16_t GetBattery_O();
+    uint16_t GetReputation_H();
+    uint16_t GetGPS_H();
+    uint16_t GetBattery_H();
+    
+    
+   
 
   private:
     Ipv4Address m_originIP;
     Ipv4Address m_hop1IP;
-    uint32_t m_reputation;
-    uint32_t m_GPS; 
-    uint32_t m_battery;
+    uint16_t m_reputation_O;
+    uint16_t m_reputation_H;
+    uint16_t m_GPS_O;
+    uint16_t m_GPS_H;
+    uint16_t m_battery_O;
+    uint16_t m_battery_H;
+
+    
+    
 };
 
 /*

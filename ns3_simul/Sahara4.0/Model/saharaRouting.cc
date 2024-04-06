@@ -19,12 +19,18 @@
 #include "ns3/ipv4-l3-protocol.h" 
 #include "ns3/ipv4-address.h"
 #include "ns3/node.h"
+#include <sys/time.h>
+#include "ns3/random-variable-stream.h"
+#include "ns3/udp-header.h"
 
-
+#include <cryptopp/sha.h>
+#include <cryptopp/hex.h>
 #include <iomanip>
 #include <iostream>
 #include <tuple>
 #include <string>
+#include <limits>
+
 
 namespace ns3
 {
@@ -33,70 +39,77 @@ NS_LOG_COMPONENT_DEFINE("saharaRoutingProtocol");
 
 namespace sahara
 {
-NS_OBJECT_ENSURE_REGISTERED(RoutingProtocol);
-
+NS_OBJECT_ENSURE_REGISTERED(SaharaRouting);
 
 TypeId
-RoutingProtocol::GetTypeId()
+SaharaRouting::GetTypeId()
 {
     static TypeId tid =
-        TypeId("ns3::sahara::RoutingProtocol")
+        TypeId("ns3::sahara::SaharaRouting")
             .SetParent<Ipv4RoutingProtocol>()
             .SetGroupName("sahara")
-            .AddConstructor<RoutingProtocol>();
+            .AddConstructor<SaharaRouting>();
            
     return tid;
 }
 
-RoutingProtocol::RoutingProtocol() 
-   
+SaharaRouting::SaharaRouting() 
+{
+  NS_LOG_DEBUG("Adding routing protocol...");
+  Ptr<UniformRandomVariable> random = CreateObject<UniformRandomVariable>();
+  m_staticRouting = Create<Ipv4StaticRouting> ();
+}
+
+SaharaRouting::~SaharaRouting()
 {
 }
 
-RoutingProtocol::~RoutingProtocol()
-{
-}
 
-void
-RoutingProtocol::SetIpv4(Ptr<Ipv4> ipv4)
-{
     
+void
+SaharaRouting::SetIpv4(Ptr<Ipv4> ipv4)
+{
+    NS_LOG_DEBUG("Starting...");
+
     NS_ASSERT(ipv4);
     NS_ASSERT(!m_ipv4);
     m_ipv4 = ipv4;
+    NS_LOG_DEBUG("Assigned IPV4");
+
     NS_ASSERT(m_ipv4->GetNInterfaces() == 1 &&
               m_ipv4->GetAddress(0, 0).GetLocal() == Ipv4Address("127.0.0.1"));
     m_lo = m_ipv4->GetNetDevice(0);
     NS_ASSERT(m_lo);
+    NS_LOG_DEBUG("Assigned local address ");
 
+    NS_LOG_DEBUG("Assigned main address...");
+
+    m_saharaPort = 9;
+    m_saharaPortSET = 10;
+    
 
     NS_LOG_DEBUG("All setted, starting routing protocol...");
 
-
-    Simulator::ScheduleNow(&RoutingProtocol::Start, this);
-    
+    Simulator::ScheduleNow(&SaharaRouting::DoStart, this);
 }
 
 
 void
-RoutingProtocol::TestRecv(Ptr<Socket> socket){
-   NS_LOG_DEBUG("Received!");
-   Ptr<Packet> packet;
-    Address from;
-    Ipv4Address receiverIp = socket->GetNode()->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
+SaharaRouting::TestRecv(Ptr<Socket> socket){
 
-    while ((packet = socket->RecvFrom (from))) {
-        Ipv4Address senderIp = InetSocketAddress::ConvertFrom(from).GetIpv4();
-        NS_LOG_DEBUG(receiverIp << ": Received a packet from " << senderIp);   
-    }
+    NS_LOG_DEBUG("[TestRecv] Packet received");
+
+    Address sourceAddr;
+    Ptr<Packet> packet = socket->RecvFrom (sourceAddr);
+    InetSocketAddress inetSocketAddr = InetSocketAddress::ConvertFrom (sourceAddr);
+    Ipv4Address sourceAddress = inetSocketAddr.GetIpv4 ();
+    NS_LOG_DEBUG("Processing hello...");
+   
 }
 
 void 
-RoutingProtocol::Start(){
-
-    
-    
-    Ipv4Address ipv4Addr =  m_ipv4->GetAddress(1, 0).GetLocal();
+SaharaRouting::DoStart(){
+     Ipv4Address ipv4Addr =  m_ipv4->GetAddress(1, 0).GetLocal();
     std::ostringstream oss;
     ipv4Addr.Print(oss);
     std::string ip_string = oss.str();
@@ -116,214 +129,459 @@ RoutingProtocol::Start(){
     } else {
         NS_LOG_DEBUG("error ip");
     }
-    std::ostringstream t_myip;
-  (m_ipv4->GetAddress(1, 0).GetLocal()).Print(t_myip);
-  s_myIP = t_myip.str();
 
-    Ptr<Socket> recvSocket = Socket::CreateSocket (GetObject<Node>(), UdpSocketFactory::GetTypeId ());
-    recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 9)); // Listen on port 9    
-    recvSocket->SetRecvCallback(MakeCallback(&RoutingProtocol::TestRecv, this));
+    for (uint32_t i = 0 ; i < m_ipv4->GetNInterfaces () ; i++)
+    {
+      Ipv4Address ipAddress = m_ipv4->GetAddress (i, 0).GetLocal ();
+
+      if (ipAddress == Ipv4Address::GetLoopback ())
+        continue;
+      // Create socket on this interface
+      Ptr<Socket> socket = Socket::CreateSocket (GetObject<Node> (), UdpSocketFactory::GetTypeId ());
+      socket->SetAllowBroadcast (true);
+      InetSocketAddress inetAddr (m_ipv4->GetAddress (i, 0).GetLocal (), m_saharaPort);
+      socket->SetRecvCallback(MakeCallback(&SaharaRouting::TestRecv, this));
+      if (socket->Bind (inetAddr))
+        {
+          NS_FATAL_ERROR ("SaharaRouting::DoStart::Failed to bind socket!");
+        }
+
+      Ptr<NetDevice> netDevice = m_ipv4->GetNetDevice (i);
+      socket->BindToNetDevice (netDevice);
+      m_socketAddresses[socket] = m_ipv4->GetAddress (i, 0);
+    }
+
+    // create socket for set reconciliation
+    for (uint32_t i = 0 ; i < m_ipv4->GetNInterfaces () ; i++)
+    {
+      Ipv4Address ipAddress = m_ipv4->GetAddress (i, 0).GetLocal ();
+
+      if (ipAddress == Ipv4Address::GetLoopback ())
+        continue;
+      // Create socket on this interface
+      Ptr<Socket> socket = Socket::CreateSocket (GetObject<Node> (), UdpSocketFactory::GetTypeId ());
+      socket->SetAllowBroadcast (true);
+      InetSocketAddress inetAddr (m_ipv4->GetAddress (i, 0).GetLocal (), m_saharaPortSET);
+      socket->SetRecvCallback(MakeCallback(&SaharaRouting::TestRecv, this));
+      if (socket->Bind (inetAddr))
+        {
+          NS_FATAL_ERROR ("SaharaRouting::DoStart::Failed to bind socket!");
+        }
+
+      Ptr<NetDevice> netDevice = m_ipv4->GetNetDevice (i);
+      socket->BindToNetDevice (netDevice);
+      m_socketAddressesSET[socket] = m_ipv4->GetAddress (i, 0);
+    }
+
+    m_mainAddress = m_ipv4->GetAddress (1, 0).GetLocal ();
+
     
-    m_routingHelloStatus = true;
-    StartRouting();
+
+        // Configure timers
+    m_auditHellosTimer.SetFunction (&SaharaRouting::AuditHellos, this);
+    m_auditPingsTimer.SetFunction(&SaharaRouting::Dijkstra, this);
+
+    // Start timers
+     m_auditHellosTimer.Schedule (MilliSeconds (2000 + 10*static_cast<double>(intNodeID)));
+
+     m_auditPingsTimer.Schedule (MilliSeconds (12000 + 10*static_cast<double>(intNodeID)));
     
-    Simulator::Schedule(Seconds(100.0), &RoutingProtocol::PauseRouting, this);
+    //Simulator::Schedule(Seconds(1.0 + (static_cast<double>(intNodeID) - ((9*static_cast<double>(intNodeID))/10))), &SaharaRouting::AuditHellos, this);
     
 }
 
 // object's destruction process 
 void
-RoutingProtocol::DoDispose()
+SaharaRouting::DoDispose()
 {
-    m_ipv4 = nullptr;
-    for (auto iter = m_socketAddresses.begin(); iter != m_socketAddresses.end(); iter++)
-    {
-        iter->first->Close();
-    }
-    m_socketAddresses.clear();
+    // Close sockets
+    for (std::map< Ptr<Socket>, Ipv4InterfaceAddress >::iterator iter = m_socketAddresses.begin ();
+        iter != m_socketAddresses.end (); iter++)
+        {
+        iter->first->Close ();
+        }
+    m_socketAddresses.clear ();
+
+    for (std::map< Ptr<Socket>, Ipv4InterfaceAddress >::iterator iter = m_socketAddressesSET.begin ();
+        iter != m_socketAddressesSET.end (); iter++)
+        {
+        iter->first->Close ();
+        }
+    m_socketAddressesSET.clear ();
+    
+    // Clear static routing
+    m_staticRouting = 0;
+
+    m_auditPingsTimer.Cancel ();
+    m_auditHellosTimer.Cancel ();
+
     Ipv4RoutingProtocol::DoDispose();
+    
 }
 
 // da completare
 void
-RoutingProtocol::PrintRoutingTable(Ptr<OutputStreamWrapper> stream, Time::Unit unit) const
+SaharaRouting::PrintRoutingTable(Ptr<OutputStreamWrapper> stream, Time::Unit unit) const
 {}
 
 void
-RoutingProtocol::DoInitialize()
+SaharaRouting::DoInitialize()
 {
    
 }
 
 void
-RoutingProtocol::NotifyInterfaceUp(uint32_t i)
+SaharaRouting::NotifyInterfaceUp(uint32_t i)
 {
 }
 
 void
-RoutingProtocol::NotifyInterfaceDown(uint32_t i)
+SaharaRouting::NotifyInterfaceDown(uint32_t i)
 {
 }
 
 void
-RoutingProtocol::NotifyAddAddress(uint32_t interface, Ipv4InterfaceAddress address)
+SaharaRouting::NotifyAddAddress(uint32_t interface, Ipv4InterfaceAddress address)
 {
 }
 
 void
-RoutingProtocol::NotifyRemoveAddress(uint32_t interface, Ipv4InterfaceAddress address)
+SaharaRouting::NotifyRemoveAddress(uint32_t interface, Ipv4InterfaceAddress address)
 {
 }
+
+ 
+
+Ptr<Ipv4Route>
+SaharaRouting::RouteOutput(Ptr<Packet> p,
+                             const Ipv4Header& header,
+                             Ptr<NetDevice> oif,
+                             Socket::SocketErrno& sockerr){
+
+    if (header.GetDestination() == m_mainAddress) {
+        Ptr<Ipv4Route> localRoute = Create<Ipv4Route>();
+        localRoute->SetDestination(m_mainAddress);
+        localRoute->SetSource(m_mainAddress); // Assuming m_mainAddress is the local address
+        localRoute->SetOutputDevice(oif); // Assuming oif is the output interface for the local node
+        return localRoute;
+      
+    }
+    else{
+        // Packet needs to be forwarded
+        Ptr<Ipv4Route> ipv4Route;
+
+        Ipv4Address nextHop = r_Table.LookUpAddr(m_mainAddress, header.GetDestination());
+        
+       
+        // Create a route for forwarding
+        ipv4Route = Create<Ipv4Route>();
+        ipv4Route->SetDestination(header.GetDestination());
+        ipv4Route->SetSource(m_mainAddress); // Assuming m_mainAddress is the local address
+        ipv4Route->SetGateway(nextHop); // Set the next hop as the gateway
+
+        // Get the output interface for the local node
+        int32_t interface = m_ipv4->GetInterfaceForAddress(m_mainAddress);
+        ipv4Route->SetOutputDevice(m_ipv4->GetNetDevice(interface)); // Set the output device
+
+        NS_LOG_DEBUG("[RouteOutput " << m_mainAddress << "] sending to -> " << header.GetDestination() << ", next hop -> " << nextHop);
+        return ipv4Route;
+
+    }
+
+    }
+    
+    void
+    SaharaRouting::PauseRouting(){
+        m_routingHelloStatus = false;
+         NS_LOG_DEBUG("PAUSED!");
+    }
+
+
+   
+
 
 bool
-RoutingProtocol::RouteInput(Ptr<const Packet> p,
+SaharaRouting::RouteInput(Ptr<const Packet> p,
                             const Ipv4Header& header,
                             Ptr<const NetDevice> idev,
                             const UnicastForwardCallback& ucb,
                             const MulticastForwardCallback& mcb,
                             const LocalDeliverCallback& lcb,
                             const ErrorCallback& ecb)
-{
-
-    //NS_LOG_DEBUG("Received a packet");
-    ProcessHello(p);
-    return true;
-} 
-
-Ptr<Ipv4Route>
-RoutingProtocol::RouteOutput(Ptr<Packet> p,
-                             const Ipv4Header& header,
-                             Ptr<NetDevice> oif,
-                             Socket::SocketErrno& sockerr){
-    Ptr<Ipv4Route> rtentry;
-    return rtentry;
-                             }
-
-
-void
-RoutingProtocol::SendHello(Ptr<Socket> socket)
 {   
+    
+    //NS_LOG_DEBUG ("[RouteInput] Called");
+    Ipv4Address destinationAddress = header.GetDestination ();
+    Ipv4Address sourceAddress = header.GetSource ();
+    //NS_LOG_DEBUG ("[RouteInput]" << destinationAddress);
+    //NS_LOG_DEBUG ("[RouteInput]" << sourceAddress);
+    Ptr<Ipv4Route> ipv4Route;
 
-  
-  // origin_ip, hop1_ip, senderip, reputation, GPS, battery
-  std::string msg = s_myIP + "," + "n" + "," + s_myIP + "," + "12" + "," + "50" + "," + "10";
+    // Drop if packet was originated by this node
+    if (IsOwnAddress(sourceAddress) == true) {
+        return true; // avoid loops
+    }
+    
+    // Check for local delivery
+    uint32_t interfaceNum = m_ipv4->GetInterfaceForDevice (idev);
+    if (m_ipv4->IsDestinationAddress (destinationAddress, interfaceNum)) {
+        NS_LOG_DEBUG ( "[RouteInput " << m_mainAddress << "] " << "SOURCE-> " << sourceAddress);
 
+        if (!lcb.IsNull ()) {
+            Ptr<Packet> packetCopy = p->Copy();
+            UdpHeader uh;
+            packetCopy->RemoveHeader(uh);
+            if(uh.GetSourcePort() == m_saharaPort){
+              ProcessHello(packetCopy);
+              //lcb(p, header, interfaceNum);
+               return true;
+            }
+            else if(uh.GetSourcePort() == m_saharaPortSET){
+              NS_LOG_DEBUG("OK RECEIVED SET RECONCILIATION REQUEST");
+              ProcessSetReconciliation(packetCopy);
+              return true;
+            }
+            else{
+              NS_LOG_DEBUG(m_mainAddress << " Local deliver");
+              lcb(p, header, interfaceNum);
+               return true;
+            }
+        }
+        return false;
+    }
+    else{
+        
+        Ptr<Ipv4Route> ipv4Route;
+        Ipv4Address nextHop = r_Table.LookUpAddr(m_mainAddress, header.GetDestination ());
+        ipv4Route = Create<Ipv4Route> ();
+        ipv4Route->SetDestination (destinationAddress);
+        ipv4Route->SetSource (m_mainAddress);
+        ipv4Route->SetGateway (nextHop);
+        int32_t interface = m_ipv4->GetInterfaceForAddress(m_mainAddress);
+        ipv4Route->SetOutputDevice (m_ipv4->GetNetDevice (interface));
 
-  Ptr<Packet> packet = Create<Packet>((uint8_t*) msg.c_str(), msg.length() + 1);
-  // Send the packet in broadcast
-  if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address::GetBroadcast(), 9)) != -1){
-    NS_LOG_DEBUG("Packet sent!");
-  } else {
-      NS_LOG_DEBUG("error");
-  }
-   Simulator::Schedule(Seconds(20.0), &RoutingProtocol::SendHello, this, socket);
+        NS_LOG_DEBUG("[RouteInput " << m_mainAddress << "] forwarding to -> " << nextHop);
+
+        // UnicastForwardCallback = void ucb(Ptr<Ipv4Route>, Ptr<const Packet>, const Ipv4Header &)
+        ucb (ipv4Route,p, header);
+        return true;
+
+    }
+    
+    
+    return false;
+
+    
+}
+
+bool
+SaharaRouting::IsOwnAddress (Ipv4Address originatorAddress)
+{
+  // Check all interfaces
+  for (std::map<Ptr<Socket> , Ipv4InterfaceAddress>::const_iterator i = m_socketAddresses.begin (); i != m_socketAddresses.end (); i++)
+    {
+      Ipv4InterfaceAddress interfaceAddr = i->second;
+      if (originatorAddress == interfaceAddr.GetLocal ())
+        {
+          return true;
+        }
+    }
+  return false;
+
 }
 
 
- // start sahara routing, sending updates every X seconds and updating routing tables
-    void 
-    RoutingProtocol::StartRouting(){
-        
-        Ptr<Socket> socket_sender = Socket::CreateSocket(GetObject<Node>(), UdpSocketFactory::GetTypeId());
-    socket_sender->SetAllowBroadcast(true);
-       
-      // if (intNodeID == 1){
-        if(m_routingHelloStatus){
-            // it depends by the number of nodes (HP: at most 10 now)
-            // so is 9 * d / 10
-            // if at most 100 is 99 * d / 100
-            
-            Simulator::Schedule(Seconds(2.0 + (static_cast<double>(intNodeID) - ((9*static_cast<double>(intNodeID))/10))), &RoutingProtocol::SendHello, this, socket_sender);   
-        }  
-       //}
-    }
+void 
+SaharaRouting::SendHello(){
+
+
+
+ //Ipv4Address destAddress = ResolveNodeIpAddress (0); // TODO remove this and "hello"
+ // uint32_t sequenceNumber = GetNextSequenceNumber ();
+
+    // NS_LOG_DEBUG ("[SendHello] Called");
+
+   // if(intNodeID == 6){
+    Ptr<Packet> packet = Create<Packet> ();
+    //SaharaHeader saharaHeader = SaharaHeader();
+    uint16_t init = 0;
+    uint16_t def = 22;
+    SaharaHeader saharaHeader = SaharaHeader(m_mainAddress, Ipv4Address("0.0.0.0"), intNodeID, init, def,def,def,def);
     
+    //NS_LOG_DEBUG ("[SendHello] Sending Hello " << m_mainAddress << ", " << Ipv4Address("0.0.0.0") << ", " << intNodeID << ", " << init << ", " << init);    
 
-    void
-    RoutingProtocol::PauseRouting(){
-        m_routingHelloStatus = false;
-         NS_LOG_DEBUG("PAUSED!");
+    packet->AddHeader(saharaHeader);
+    BroadcastPacket (packet);
+  //  }
+
+}
+
+void
+SaharaRouting::BroadcastPacket(Ptr<Packet> packet){
+
+    //NS_LOG_DEBUG ("[BroadcastPacket] Called");
+    for (std::map<Ptr<Socket> , Ipv4InterfaceAddress>::const_iterator i =
+      m_socketAddresses.begin (); i != m_socketAddresses.end (); i++)
+    {
+      //TRAFFIC_LOG( "Interface Addr: " << i->second.GetLocal());
+      Ipv4Address broadcastAddr = i->second.GetLocal ().GetSubnetDirectedBroadcast (i->second.GetMask ());
+      i->first->SendTo (packet, 0, InetSocketAddress (broadcastAddr, m_saharaPort));
     }
 
+}
 
-    void
-    RoutingProtocol::ProcessHello(Ptr<const Packet> p){
-        uint8_t buffer[p->GetSize()];
-        p->CopyData(buffer, p->GetSize());
-        std::string originIP;
-        std::string hop1IP;
-        std::string senderIP;
-        std::string rep;
-        std::string GPS;
-        std::string battery;
-        bool start = false;
+
+void
+SaharaRouting::AuditHellos()
+{
+    // reset routing table avery 30 seconds, maybe it is not efficient 
+    // but allow to delete nodes that are not anymore neighbors
+   
+    //r_Table.DeleteAll();
+    
+  //Broadcast a fresh HELLO message to immediate neighbors
+  
+  SendHello ();
+  //bool sendMsg = false;
+  
+  // Reschedule timer, every 30 seconds it sends updates
+  m_auditHellosTimer.Schedule (MilliSeconds (30000));
+
+}
+
+ void
+    SaharaRouting::ProcessHello(Ptr<Packet> packet){
+        
+
+        NS_LOG_DEBUG("[ProcessHello] processing hello...");
+
+        SaharaHeader sh;
+        packet->RemoveHeader(sh);
+        Ipv4Address originIP = sh.GetOriginIP();
+        Ipv4Address hop1IP = sh.GetHop1IP();
+        uint16_t reputation_O = sh.GetReputation_O();
+        uint16_t GPS_O = sh.GetGPS_O();
+        uint16_t battery_O = sh.GetBattery_O();
+        uint16_t reputation_H = sh.GetReputation_H();
+        uint16_t GPS_H = sh.GetGPS_H();
+        uint16_t battery_H = sh.GetBattery_H();
+
+        NS_LOG_DEBUG("Node: " << intNodeID << "-> " << originIP << ", " << hop1IP << ", " << reputation_O << ", "<<reputation_H);
+
+        if(hop1IP == Ipv4Address("0.0.0.0")) {
+
+           r_Table.AddTuple(originIP, m_mainAddress, reputation_O,intNodeID, GPS_O, GPS_H, battery_O, battery_H);
+           // forward hello 
+           Ptr<Packet> packet = Create<Packet> ();
+           SaharaHeader saharaHeader = SaharaHeader(originIP, m_mainAddress, reputation_O, intNodeID, GPS_O, GPS_H, battery_O, battery_H);
+           packet->AddHeader(saharaHeader);
+
+           Simulator::Schedule(MilliSeconds(100 + 100*intNodeID), &SaharaRouting::BroadcastPacket, this, packet);
+
+          // BroadcastPacket (packet);
+
+        }else if(!r_Table.CheckDuplicate(originIP, hop1IP) and (originIP!=m_mainAddress)){
+
+             r_Table.AddTuple(originIP, hop1IP, reputation_O,reputation_H, GPS_O, GPS_H, battery_O, battery_H);
+             Ptr<Packet> packet = Create<Packet> ();
+             SaharaHeader saharaHeader = SaharaHeader(originIP, hop1IP, reputation_O,reputation_H, GPS_O, GPS_H, battery_O, battery_H);
+             packet->AddHeader(saharaHeader);
+             Simulator::Schedule(MilliSeconds(100 + 100*intNodeID), &SaharaRouting::BroadcastPacket, this, packet);
+             
+        }
+       if(intNodeID ==2){
+            NS_LOG_DEBUG("Print RT -> " <<m_mainAddress );
+            r_Table.PrintAll();
+            
+        }
+
+    }
+
+void
+SaharaRouting::Dijkstra(){
+     
+    NS_LOG_DEBUG("[Dijkstra] Entered");
+    r_Table.RunDijkstra(m_mainAddress);
+    
+    StartSetReconciliation();
+
+    m_auditPingsTimer.Schedule (MilliSeconds (300000));
+}
+
+
+// to delete -> not usefull
+void
+SaharaRouting::addQueue(Ptr<Packet> p){
+    //NS_LOG_DEBUG("Add to queue");
+    myQueue.push(p);
+}
+
+
+void
+SaharaRouting::StartSetReconciliation(){
+
+    // create bloom filter
+      //r_Table.CreateBloomFilter();
+
+    // send bloom filter in broadcast
+    if(intNodeID == 1){
+      std::vector<bool> bloomFilter;
+      bloomFilter = r_Table.CreateBloomFilter();
+
       
+      
+      // bloom filter received correclty
+      
+      std::vector<uint8_t> byteVector(bloomFilter.begin(), bloomFilter.end());
 
-        std::vector<std::string*> fields = {&originIP, &hop1IP, &senderIP, &rep, &GPS, &battery};
-        size_t fieldIndex = 0;
 
-        // retreive message content
-        for (size_t i = 0; i < p->GetSize(); ++i) {
-             if(buffer[i] == '1') start = true;
-             if(start) {
-            if (buffer[i] == ',') {
-                ++fieldIndex;
-                continue;
+      Ptr<Packet> packet = Create<Packet>(&byteVector[0], byteVector.size());
+
+      
+      BroadcastPacketSET(packet);
+      
+    }
+
+}
+
+void
+SaharaRouting::BroadcastPacketSET(Ptr<Packet> packet){
+    NS_LOG_DEBUG(intNodeID << ": SENDING SET RECONCILIATION DATA");
+    //NS_LOG_DEBUG ("[BroadcastPacket] Called");
+    for (std::map<Ptr<Socket> , Ipv4InterfaceAddress>::const_iterator i =
+      m_socketAddressesSET.begin (); i != m_socketAddressesSET.end (); i++)
+    {
+      //TRAFFIC_LOG( "Interface Addr: " << i->second.GetLocal());
+      Ipv4Address broadcastAddr = i->second.GetLocal ().GetSubnetDirectedBroadcast (i->second.GetMask ());
+      i->first->SendTo (packet, 0, InetSocketAddress (broadcastAddr, m_saharaPortSET));
+    }
+
+}
+
+void
+SaharaRouting::ProcessSetReconciliation(Ptr<Packet> packet){
+
+ uint32_t size = packet->GetSize();
+      uint8_t buffer[size];
+      packet->CopyData(buffer, size);
+
+      std::vector<bool> receivedBloomFilter;
+      for (uint32_t i = 0; i < size; i++) {
+          receivedBloomFilter.push_back(buffer[i] == 1);
+      }
+      
+      NS_LOG_DEBUG(intNodeID << ": Printing bloom filter received");
+      std::string toPrintTosee;
+            for (int i = 0; i < 16; ++i) {
+                toPrintTosee += std::to_string(receivedBloomFilter[i]);
             }
-            if (fieldIndex < fields.size()) {
-                *(fields[fieldIndex]) += buffer[i];
-            }
-             }
-        }
+      NS_LOG_DEBUG(intNodeID << ": bloom filter received ->" << toPrintTosee);
 
-        
-        // check if need to forward
-        if(s_myIP != originIP and s_myIP != senderIP and hop1IP == "n"){
-            NS_LOG_DEBUG(s_myIP + "-> Received: " + originIP + "," + hop1IP + "," + senderIP + "," + rep + "," + GPS + "," + battery);
+      r_Table.ProcessSetReconciliation(receivedBloomFilter);
 
-            
-            // store updated tuple with new 1hop
-            if(!(r_Table.CheckDuplicate(Ipv4Address(originIP.c_str()), Ipv4Address(hop1IP.c_str())))){
-                r_Table.AddTuple(Ipv4Address(originIP.c_str()), Ipv4Address(s_myIP.c_str()), 2, 3, 32);
-             }
-            
-            std::tuple myTuple = r_Table.getLastTupleTest();
-            Ipv4Address firstIp = std::get<0>(myTuple);
-            //NS_LOG_DEBUG(firstIp);  
+      
+}
 
-            std::string msg =  originIP + "," +  s_myIP + "," + s_myIP + "," + "12" + "," + "50" + "," + "10";
-
-            Simulator::Schedule(Seconds(1.0 + (static_cast<double>(intNodeID) - ((9*static_cast<double>(intNodeID))/10))), &RoutingProtocol::ForwardHello, this, msg);   
-        }
-
-        else if(!(r_Table.CheckDuplicate(Ipv4Address(originIP.c_str()), Ipv4Address(hop1IP.c_str())))){
-
-            NS_LOG_DEBUG(s_myIP + "-> Received forwarded msg " + originIP + "," + hop1IP + "," + senderIP + "," + rep + "," + GPS + "," + battery);
-            r_Table.AddTuple(Ipv4Address(originIP.c_str()), Ipv4Address(hop1IP.c_str()), 2, 3, 32);
-            std::string msg =  originIP + "," +  hop1IP + "," + s_myIP + "," + "12" + "," + "50" + "," + "10";
-            Simulator::Schedule(Seconds(1.0 + (static_cast<double>(intNodeID) - ((9*static_cast<double>(intNodeID))/10))), &RoutingProtocol::ForwardHello, this, msg);   
-            if(intNodeID == 10) r_Table.PrintAll();
-        }
-
-    }
-
-    void
-   RoutingProtocol::ForwardHello(std::string msg){
-        
-        Ptr<Packet> pkt = Create<Packet>((uint8_t*) msg.c_str(), msg.length() + 1);
-
-        Ptr<Socket> send_s = Socket::CreateSocket(GetObject<Node>(), UdpSocketFactory::GetTypeId());
-        send_s->SetAllowBroadcast(true);
-
-        if (send_s->SendTo(pkt, 0, InetSocketAddress(Ipv4Address::GetBroadcast(), 9)) != -1){
-        NS_LOG_DEBUG(s_myIP + "-> Forward hello, sent!");
-    } else {
-        NS_LOG_DEBUG("error forwarding");
-    }
-
-
-
-    }
 
 
 } // namespace ns3

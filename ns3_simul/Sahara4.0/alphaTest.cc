@@ -39,13 +39,13 @@ void ReceivePacket(Ptr<Socket> socket) {
     }
 }
 
-void sendMessage(Ptr<Socket> socket, uint16_t port , std::string msg){
-    //std::string msg = "Hello World!";
-
+void sendMessage(Ptr<Socket> socket, uint16_t port){
+    std::string msg = "Hello World!";
+         NS_LOG_UNCOND("SENT:" << msg);
       Ptr<Packet> packet = Create<Packet>((uint8_t*) msg.c_str(), msg.length() + 1);
 
       // Send the packet in broadcast
-      if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address::GetBroadcast(), port)) != -1) {
+      if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address("10.1.1.3"), port)) != -1) {
       } else {
           std::cout << "error";
       }
@@ -56,9 +56,9 @@ int main (int argc, char *argv[])
   // Enable logging
   //LogComponentEnable("UdpSocketImpl", LOG_LEVEL_ALL);
   
-  
-  //LogComponentEnable("saharaRoutingProtocol", LOG_LEVEL_ALL);
+  LogComponentEnable("saharaRoutingProtocol", LOG_LEVEL_ALL);
   LogComponentEnable("routingTable", LOG_LEVEL_ALL);
+  //LogComponentEnable("saharaHeader", LOG_LEVEL_ALL);
 
 
   CommandLine cmd;
@@ -66,7 +66,7 @@ int main (int argc, char *argv[])
 
   // Create nodes
   NodeContainer nodes;
-  nodes.Create(10);
+  nodes.Create(6);
   
   //nodes.Get(1)->setm_nodeTestID(543);
   //uint32_t nodeID = nodes.Get(1)->getm_nodeTestID();
@@ -87,8 +87,8 @@ int main (int argc, char *argv[])
 
   YansWifiPhyHelper wifiPhy;
   YansWifiChannelHelper wifiChannel;
-  wifiPhy.Set ("TxPowerStart", DoubleValue(0.07));
-  wifiPhy.Set ("TxPowerEnd", DoubleValue(0.07));
+  wifiPhy.Set ("TxPowerStart", DoubleValue(10.01));
+  wifiPhy.Set ("TxPowerEnd", DoubleValue(10.01));
   wifiPhy.Set ("TxPowerLevels", UintegerValue(1));
 
   wifiChannel.SetPropagationDelay("ns3::ConstantSpeedPropagationDelayModel");
@@ -97,7 +97,28 @@ int main (int argc, char *argv[])
   wifiPhy.SetChannel(wifiChannel.Create());
   
   NetDeviceContainer devices = wifi.Install(wifiPhy, mac, nodes);
+    
+    MobilityHelper mobility;
+    ObjectFactory pos;
+    pos.SetTypeId("ns3::RandomRectanglePositionAllocator");
+    pos.Set("X", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=300.0]"));
+    pos.Set("Y", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=300.0]"));
 
+    std::ostringstream speedConstantRandomVariableStream;
+    speedConstantRandomVariableStream << "ns3::ConstantRandomVariable[Constant=" << 2
+                                      << "]";
+
+    Ptr<PositionAllocator> taPositionAlloc = pos.Create()->GetObject<PositionAllocator>();
+    mobility.SetMobilityModel("ns3::RandomWaypointMobilityModel",
+                              "Speed",
+                              StringValue(speedConstantRandomVariableStream.str()),
+                              "Pause",
+                              StringValue("ns3::ConstantRandomVariable[Constant=2.0]"),
+                              "PositionAllocator",
+                              PointerValue(taPositionAlloc));
+    mobility.SetPositionAllocator(taPositionAlloc);
+    
+    /*
     MobilityHelper mobility;
 
     mobility.SetPositionAllocator("ns3::GridPositionAllocator",
@@ -117,9 +138,12 @@ int main (int argc, char *argv[])
     mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel",
                               "Bounds",
                               RectangleValue(Rectangle(-500, 500, -500, 500))
-                              );
-/*
+                              ); 
+              */                
+
   // Mobility of the nodes
+  
+  /*
   MobilityHelper mobility;
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
                                   "MinX", DoubleValue (0.0),
@@ -129,20 +153,20 @@ int main (int argc, char *argv[])
                                   "GridWidth", UintegerValue (3),
                                   "LayoutType", StringValue ("RowFirst"));
 
-  mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");*/
-
-  mobility.Install (nodes);
+  mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+    */
+  mobility.Install (nodes);  
   
     
   // suggestion from Pecorella
    //Ipv4ListRoutingHelper listRH;
-   //saharaHelper sahara;
+   //SaharaHelper sahara;
   // listRH.Add(sahara, 0);
   // Ipv4StaticRoutingHelper staticRh;
   // listRH.Add(staticRh, 5);
 
   //Sahara routing
-    saharaHelper sahara;
+    SaharaHelper sahara;
    
 
   // Internet stack
@@ -155,23 +179,22 @@ int main (int argc, char *argv[])
   ipv4.SetBase("10.1.1.0", "255.255.255.0");
   Ipv4InterfaceContainer interfaces = ipv4.Assign(devices);
 
-
-  /*
+  
   // RECEIVERs socket
-  for(uint32_t i = 0; i < 3; i++){
-    Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (i), UdpSocketFactory::GetTypeId ());
-    recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 9)); // Listen on port 9
+  //for(uint32_t i = 0; i < 3; i++){
+    Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (1), UdpSocketFactory::GetTypeId ());
+    recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 12345)); // Listen on port 9
     recvSocket->SetRecvCallback (MakeCallback (&ReceivePacket));
-  }
+  //}
 
- uint16_t port = 9;
- for(uint16_t i=0; i < 3; i++){
-  Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (i), TypeId::LookupByName ("ns3::UdpSocketFactory"));
-  //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
-  socket_sender->SetAllowBroadcast(true);
-  Simulator::Schedule(Seconds(2.0 + (0.1 * i)), &sendUpdate, socket_sender, port);
- }
- */ 
+    uint16_t port = 12345;
+    //for(uint16_t i=0; i < 3; i++){
+    Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (0), TypeId::LookupByName ("ns3::UdpSocketFactory"));
+    //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
+    // socket_sender->SetAllowBroadcast(true);
+    Simulator::Schedule(Seconds(15.0), &sendMessage, socket_sender, port);
+    //}
+ 
 
   // Run simulation
   Simulator::Stop(Seconds(100.0));

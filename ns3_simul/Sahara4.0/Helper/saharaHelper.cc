@@ -9,35 +9,35 @@
 namespace ns3
 {
 
-saharaHelper::~saharaHelper()
+SaharaHelper::~SaharaHelper()
 {
 }
 
 
-saharaHelper::saharaHelper () : Ipv4RoutingHelper()
+SaharaHelper::SaharaHelper () : Ipv4RoutingHelper()
 {
-    m_agentFactory.SetTypeId("ns3::sahara::RoutingProtocol");
+    m_agentFactory.SetTypeId("ns3::sahara::SaharaRouting");
 }
 
 
-saharaHelper*
-saharaHelper::Copy() const
+SaharaHelper*
+SaharaHelper::Copy() const
 {
-    return new saharaHelper(*this);
+    return new SaharaHelper(*this);
 }
 
 
 Ptr<Ipv4RoutingProtocol>
-saharaHelper::Create(Ptr<Node> node) const
+SaharaHelper::Create(Ptr<Node> node) const
 {
-    Ptr<sahara::RoutingProtocol> agent = m_agentFactory.Create<sahara::RoutingProtocol>();
+    Ptr<sahara::SaharaRouting> agent = m_agentFactory.Create<sahara::SaharaRouting>();
     node->AggregateObject(agent);
     
     return agent;
 }
 
 void
-saharaHelper::Set(std::string name, const AttributeValue& value)
+SaharaHelper::Set(std::string name, const AttributeValue& value)
 {
     m_agentFactory.Set(name, value);
 }

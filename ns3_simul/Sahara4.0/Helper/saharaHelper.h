@@ -14,14 +14,14 @@ namespace ns3
 {
 
 
-class saharaHelper : public Ipv4RoutingHelper
+class SaharaHelper : public Ipv4RoutingHelper
 {
   public:
 
-    saharaHelper();
-    ~saharaHelper() override;
+    SaharaHelper();
+    ~SaharaHelper() override;
 
-    saharaHelper* Copy() const override;
+    SaharaHelper* Copy() const override;
 
 
     Ptr<Ipv4RoutingProtocol> Create(Ptr<Node> node) const override;
