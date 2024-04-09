@@ -44,21 +44,17 @@ public:
 
 
 private:
-	std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> tuples;
-    //std::vector<std::tuple<Ipv4Address,uint16_t>> distance;
-    //std::vector<Ipv4Address> unvisited;
+	std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> m_tuples;
 
-    std::map<Ipv4Address, uint16_t> distance;
-    std::map<Ipv4Address, bool> visited;
-    //std::map<std::pair<Ipv4Address, Ipv4Address>, Ipv4Address> routes;
-    std::map<Ipv4Address, Ipv4Address> previous;
-    std::map<Ipv4Address, std::vector<Ipv4Address>> routes;
-    //std::vector<std::vector<Ipv4Address>> routes;
-    int num_hash_functions = 1;
-    bool finalRound = false;
+    std::map<Ipv4Address, uint16_t> m_distance;
+    std::map<Ipv4Address, bool> m_visited;
+    std::map<Ipv4Address, Ipv4Address> m_previous;
+    std::map<Ipv4Address, std::vector<Ipv4Address>> m_routes;
+    int m_num_hash_functions = 1;
+    bool m_finalRound = false;
 
     // create crypto++ hash object
-    CryptoPP::SHA256 hash; 
+    CryptoPP::SHA256 m_hash; 
 	
 
 };

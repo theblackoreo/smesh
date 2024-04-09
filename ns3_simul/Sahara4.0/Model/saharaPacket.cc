@@ -1,12 +1,9 @@
+#include "saharaPacket.h"
+#include "ns3/address-utils.h"
+#include "ns3/packet.h"
 
-    #include "saharaPacket.h"
-
-    #include "ns3/address-utils.h"
-    #include "ns3/packet.h"
-
-    namespace ns3
-    {
-        
+namespace ns3
+{
     NS_LOG_COMPONENT_DEFINE("saharaHeader");
 
     namespace sahara
@@ -14,27 +11,23 @@
 
     NS_OBJECT_ENSURE_REGISTERED(SaharaHeader);
 
-        SaharaHeader::SaharaHeader(Ipv4Address originIP, Ipv4Address hop1IP, 
+    SaharaHeader::SaharaHeader(Ipv4Address originIP, Ipv4Address hop1IP, 
                                 uint16_t reputation_O, uint16_t reputation_H, uint16_t GPS_O,
                                 uint16_t GPS_H, uint16_t battery_O, uint16_t battery_H)
-            {
-            m_originIP = originIP;
-            m_hop1IP = hop1IP;
-            m_reputation_O = reputation_O;
-            m_reputation_H = reputation_H;
-            m_GPS_O = GPS_O;
-            m_GPS_H = GPS_H;
-            m_battery_O = battery_O;
-            m_battery_H = battery_H;
-
-           //NS_LOG_DEBUG("header stored: "<< m_originIP << ", " << m_hop1IP << ", " << m_reputation_O);
-
-        }
+    {
+        m_originIP = originIP;
+        m_hop1IP = hop1IP;
+        m_reputation_O = reputation_O;
+        m_reputation_H = reputation_H;
+        m_GPS_O = GPS_O;
+        m_GPS_H = GPS_H;
+        m_battery_O = battery_O;
+        m_battery_H = battery_H;
+    }
 
     SaharaHeader::~SaharaHeader()
     {
     }
-
 
     TypeId
     SaharaHeader::GetTypeId()
@@ -172,15 +165,10 @@
             m_battery_H = bat;
         }
 
-
-    
-
-
-
     void
     SaharaHeader::Print(std::ostream& os) const
     {
     
     }
     } // namespace Sahara
-    } // namespace ns3
+} // namespace ns3

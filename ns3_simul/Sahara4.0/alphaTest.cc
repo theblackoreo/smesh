@@ -56,9 +56,11 @@ int main (int argc, char *argv[])
   // Enable logging
   //LogComponentEnable("UdpSocketImpl", LOG_LEVEL_ALL);
   
-  LogComponentEnable("saharaRoutingProtocol", LOG_LEVEL_ALL);
-  LogComponentEnable("routingTable", LOG_LEVEL_ALL);
+  //LogComponentEnable("saharaRoutingProtocol", LOG_LEVEL_ALL);
+  //LogComponentEnable("routingTable", LOG_LEVEL_ALL);
   //LogComponentEnable("saharaHeader", LOG_LEVEL_ALL);
+  //LogComponentEnable("saharaQueue", LOG_LEVEL_ALL);
+  
 
 
   CommandLine cmd;
@@ -87,8 +89,8 @@ int main (int argc, char *argv[])
 
   YansWifiPhyHelper wifiPhy;
   YansWifiChannelHelper wifiChannel;
-  wifiPhy.Set ("TxPowerStart", DoubleValue(10.01));
-  wifiPhy.Set ("TxPowerEnd", DoubleValue(10.01));
+  wifiPhy.Set ("TxPowerStart", DoubleValue(0.01));
+  wifiPhy.Set ("TxPowerEnd", DoubleValue(0.01));
   wifiPhy.Set ("TxPowerLevels", UintegerValue(1));
 
   wifiChannel.SetPropagationDelay("ns3::ConstantSpeedPropagationDelayModel");
@@ -97,7 +99,7 @@ int main (int argc, char *argv[])
   wifiPhy.SetChannel(wifiChannel.Create());
   
   NetDeviceContainer devices = wifi.Install(wifiPhy, mac, nodes);
-    
+    /*
     MobilityHelper mobility;
     ObjectFactory pos;
     pos.SetTypeId("ns3::RandomRectanglePositionAllocator");
@@ -118,7 +120,7 @@ int main (int argc, char *argv[])
                               PointerValue(taPositionAlloc));
     mobility.SetPositionAllocator(taPositionAlloc);
     
-    /*
+    
     MobilityHelper mobility;
 
     mobility.SetPositionAllocator("ns3::GridPositionAllocator",
@@ -143,7 +145,7 @@ int main (int argc, char *argv[])
 
   // Mobility of the nodes
   
-  /*
+  
   MobilityHelper mobility;
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
                                   "MinX", DoubleValue (0.0),
@@ -154,7 +156,7 @@ int main (int argc, char *argv[])
                                   "LayoutType", StringValue ("RowFirst"));
 
   mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
-    */
+    
   mobility.Install (nodes);  
   
     
@@ -181,18 +183,19 @@ int main (int argc, char *argv[])
 
   
   // RECEIVERs socket
-  //for(uint32_t i = 0; i < 3; i++){
-    Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (1), UdpSocketFactory::GetTypeId ());
+  for(uint32_t i = 0; i < 3; i++){
+    Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (i), UdpSocketFactory::GetTypeId ());
     recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 12345)); // Listen on port 9
     recvSocket->SetRecvCallback (MakeCallback (&ReceivePacket));
-  //}
+   
+  }
 
     uint16_t port = 12345;
     //for(uint16_t i=0; i < 3; i++){
     Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (0), TypeId::LookupByName ("ns3::UdpSocketFactory"));
     //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
     // socket_sender->SetAllowBroadcast(true);
-    Simulator::Schedule(Seconds(15.0), &sendMessage, socket_sender, port);
+    Simulator::Schedule(Seconds(1.0), &sendMessage, socket_sender, port);
     //}
  
 

@@ -1,5 +1,3 @@
-
-
 #ifndef sahara_AGENT_IMPL_H
 #define sahara_AGENT_IMPL_H
 
@@ -16,8 +14,11 @@
 #include "ns3/traced-callback.h"
 #include "routingTable.h"
 #include "saharaPacket.h"
+#include "ns3/core-module.h"
+#include "ns3/network-module.h"
 
-#include <queue>
+#include "saharaQueue.h"
+
 #include <map>
 #include <vector>
 
@@ -27,7 +28,7 @@
     It doesn't have all the features of the final implementation and in this case only few simple methods
     are used to send updates, messages and so on. Maybe the performarces are slightly different from the final implementation.
     and realistic implementation. Consider it as a prof of concept.
-    */
+*/
 
 
 namespace ns3
@@ -49,7 +50,6 @@ class SaharaRouting : public Ipv4RoutingProtocol
   protected:
     void DoInitialize() override;
     void DoDispose() override;
-    virtual void DoStart (void);
 
    
   public:
@@ -72,6 +72,7 @@ class SaharaRouting : public Ipv4RoutingProtocol
                            Time::Unit unit = Time::S) const override;
 
     void StartSetReconciliation();
+    
  
   private:
     void NotifyInterfaceUp(uint32_t interface) override;
@@ -84,47 +85,37 @@ class SaharaRouting : public Ipv4RoutingProtocol
     Ptr<Ipv4> m_ipv4;
     std::map<Ptr<Socket>, Ipv4InterfaceAddress> m_socketAddresses;
     std::map<Ptr<Socket>, Ipv4InterfaceAddress> m_socketAddressesSET;
-    //RoutingTable m_routingTable;
+
     Ptr<NetDevice> m_lo;
     bool m_routingHelloStatus;
-    uint16_t intNodeID;
-    std::string s_myIP;
-    Ptr<Ipv4StaticRouting> m_staticRouting;
+    uint16_t m_intNodeID;
     RoutingTable r_Table;
     uint16_t m_saharaPort;
     uint16_t m_saharaPortSET;
 
-    Timer m_auditPingsTimer;
-    Timer m_auditHellosTimer;
+
+    // managing timer for running node routing functions
+    Timer m_auditDijkstra;
+    Timer m_auditFloodingTimer;
+    Timer m_auditLookUpPacketQueue;
+
+    // millisecond to start
+    uint16_t m_timeToStartFlooding = 8000;
+    uint16_t m_timeToStartDijskra = 12000;
+    uint16_t m_timeToStartPacketQueue = 3000;
+
+    // millisecond to set up frequency
+    uint16_t m_frequencyFlooding = 20000;
+    uint16_t m_frequencyDijskra = 27000;
+    uint16_t m_frequencyLookUpPacketQueue = 2000;
+
     uint32_t m_currentSequenceNumber;
+    PacketQueue m_queue;
+    
 
-    std::queue<Ptr<Packet>> myQueue;
 
-    // origin_ip, hop1_ip, senderip, reputation, GPS, battery
-    //std::tuple<std::string, std::string, std::string, uint16_t, uint16_t, uint16_t>> tuple;
 
   private:
-    // start routing protocol
-    //void Start();
-
-    /*
-    // Queue packet until we find a route
-    void DeferredRouteOutput(Ptr<const Packet> p,
-                             const Ipv4Header& header,
-                             UnicastForwardCallback ucb,
-                             ErrorCallback ecb);
-
-    // Look for any queued packets to send them out
-    void LookForQueuedPackets();
-
-    // send packet from queue
-    void SendPacketFromQueue(Ipv4Address dst, Ptr<Ipv4Route> route);
-
-    // Find socket with local interface address iface
-    Ptr<Socket> FindSocketWithInterfaceAddress(Ipv4InterfaceAddress iface) const;
-    */
-
-    // Send a packet
     void SendHello();
 
     void TestRecv(Ptr<Socket> socket);
@@ -141,17 +132,10 @@ class SaharaRouting : public Ipv4RoutingProtocol
     void BroadcastPacket(Ptr<Packet> packet);
     void AuditHellos();
     void Dijkstra();
-    void addQueue(Ptr<Packet> p);
     void BroadcastPacketSET(Ptr<Packet> packet);
     void ProcessSetReconciliation(Ptr<Packet> packet);
-
-    
-
-    
-
-
-
-    
+    void LookupQueue();
+    void sendPacketFromQueue(Ipv4Address dst, Ipv4Address nextHop);
 };
 
 } // namespace sahara
