@@ -219,7 +219,7 @@
       m_auditDijkstra.SetFunction(&SaharaRouting::Dijkstra, this);
       m_auditLookUpPacketQueue.SetFunction(&SaharaRouting::LookupQueue, this);
 
-      u_int32_t xxx = 10;
+      u_int32_t xxx = 100;
       m_queue.SetMaxQueueLen(xxx);
       m_queue.SetQueueTimeout(Seconds(30));
 

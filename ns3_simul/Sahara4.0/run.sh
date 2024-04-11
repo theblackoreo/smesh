@@ -2,6 +2,11 @@
 
 
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/alphaTest.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/alphaStatic.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/betaStatic.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0//manet-routing-compare.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
+
+
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/alphaTest.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/examples/
 
 

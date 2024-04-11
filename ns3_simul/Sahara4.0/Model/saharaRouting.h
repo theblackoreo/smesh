@@ -100,14 +100,14 @@ class SaharaRouting : public Ipv4RoutingProtocol
     Timer m_auditLookUpPacketQueue;
 
     // millisecond to start
-    uint16_t m_timeToStartFlooding = 8000;
+    uint16_t m_timeToStartFlooding = 1000;
     uint16_t m_timeToStartDijskra = 12000;
-    uint16_t m_timeToStartPacketQueue = 3000;
+    uint16_t m_timeToStartPacketQueue = 13000;
 
     // millisecond to set up frequency
-    uint16_t m_frequencyFlooding = 20000;
-    uint16_t m_frequencyDijskra = 27000;
-    uint16_t m_frequencyLookUpPacketQueue = 2000;
+    uint16_t m_frequencyFlooding = 30000;
+    uint16_t m_frequencyDijskra = 38000;
+    uint16_t m_frequencyLookUpPacketQueue = 9000;
 
     uint32_t m_currentSequenceNumber;
     PacketQueue m_queue;
