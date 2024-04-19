@@ -7,16 +7,44 @@ namespace ns3
 {
     NS_LOG_COMPONENT_DEFINE("routingTable");
 
-    RoutingTable::RoutingTable(){}
-        
-        
-    bool
-    RoutingTable::AddTuple(Ipv4Address originIP, Ipv4Address hop1IP, uint16_t reputation_O, uint16_t reputation_H, uint16_t GPS_O,
-                            uint16_t GPS_H, uint16_t battery_O, uint16_t battery_H){
-        m_tuples.push_back(std::make_tuple(originIP, hop1IP, reputation_O, reputation_H, GPS_O, GPS_H, battery_O, battery_H));
-            
-        return true;
+    RoutingTable::RoutingTable(){
     }
+
+    RoutingTable::~RoutingTable(){
+         m_outputFile.close();
+    }
+
+
+    // init file routing tables history
+    void
+    RoutingTable::SetFile(std::string fileName){
+      m_outputFile.open(fileName, std::ios::out | std::ios::trunc);
+      if (!m_outputFile.is_open()) {
+        std::cerr << "Failed to open the output file." << std::endl;
+    }
+
+    }
+        
+    
+
+    bool RoutingTable::AddTuple(Ipv4Address originIP, Ipv4Address hop1IP, uint16_t reputation_O, uint16_t reputation_H, uint16_t GPS_O, uint16_t GPS_H, uint16_t battery_O, uint16_t battery_H) {
+    // Check if the tuple already exists in the vector
+    for (const auto& tuple : m_tuples) {
+        
+        if (std::get<0>(tuple) == originIP && std::get<1>(tuple) == hop1IP) {
+            // Tuple already exists, return false
+            return false;
+        }
+    }
+
+    // Tuple doesn't exist, add it to the vector
+    if (originIP.Get() > hop1IP.Get()) {
+        m_tuples.push_back(std::make_tuple(hop1IP, originIP, reputation_H, reputation_O, GPS_H, GPS_O, battery_H, battery_O));
+    } else {
+        m_tuples.push_back(std::make_tuple(originIP, hop1IP, reputation_O, reputation_H, GPS_O, GPS_H, battery_O, battery_H));
+    }
+    return true;
+}
         
     std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>
     RoutingTable::getLastTupleTest(){
@@ -101,14 +129,24 @@ namespace ns3
         m_routes.clear();
         m_previous.clear();
 
+         NS_LOG_DEBUG("[RunDijkstra - Routing Table] -> " << myAddress << " Cleared");
+
         // fill this list, at the beginning m_distance is max and all nodes are unvisited
         for (const auto& tup : m_tuples) {
-            if(!CheckDubleEntry(std::get<0>(tup))){
+           
                 m_distance[std::get<0>(tup)] = 255;
                 m_visited[std::get<0>(tup)] = false;
                 m_previous[std::get<0>(tup)] = Ipv4Address("0.0.0.0");
-            }
+
+                m_distance[std::get<1>(tup)] = 255;
+                m_visited[std::get<1>(tup)] = false;
+                m_previous[std::get<1>(tup)] = Ipv4Address("0.0.0.0");
+            
+            
         }
+        
+        NS_LOG_DEBUG("[RunDijkstra - Routing Table] -> " << myAddress << " Initilized vectors");
+
         
         m_distance[myAddress] = 0;
         Ipv4Address ind;
@@ -136,7 +174,9 @@ namespace ns3
             }
 
         }
+     NS_LOG_DEBUG("[RunDijkstra - Routing Table] -> " << myAddress << " first loop passed ");
 
+    /*
         for (const auto& dest : m_distance) {
             Ipv4Address current = dest.first;
             std::vector<Ipv4Address> path;
@@ -146,7 +186,37 @@ namespace ns3
             }
             std::reverse(path.begin(), path.end());
             m_routes[dest.first] = path;
+        }*/
+
+        for (const auto& dest : m_distance) {
+            Ipv4Address current = dest.first;
+            std::vector<Ipv4Address> path;
+            try {
+                while (current != myAddress) {
+                    if (m_previous.find(current) == m_previous.end()) {
+                        // Handle error: No previous node found for current node
+                        NS_LOG_DEBUG("Not found previus -> not existing path");
+                       
+                        break;
+                        //throw std::runtime_error("No previous node found for current node.");
+
+                    }
+                    else{
+                        path.push_back(current);
+                        current = m_previous.at(current);
+                    }
+                }
+                path.push_back(myAddress); // Include myAddress in the path
+                m_routes[dest.first] = path;
+            } catch (const std::exception& e) {
+                // Handle error: Exception occurred during path calculation
+                std::cerr << "Error while calculating path: " << e.what() << std::endl;
+                // Optionally, you can choose to continue with the next destination
+            }
         }
+
+
+         NS_LOG_DEBUG("[RunDijkstra - Routing Table] -> " << myAddress << " second loop passed ");
 
         NS_LOG_DEBUG("Printing m_visited vector...");
         for (const auto& tu : m_visited) {            
@@ -199,7 +269,7 @@ namespace ns3
         return 0;
     }
 
-
+    // to delete, not used --------
     bool RoutingTable::CheckDubleEntry(Ipv4Address addr){
             for (const auto& t : m_distance) {
                 // Check if myIP matches the first element of the current tuple
@@ -212,7 +282,9 @@ namespace ns3
 
     Ipv4Address RoutingTable::LookUpAddr(Ipv4Address source, Ipv4Address dest){
             
-            // NS_LOG_DEBUG("[RTABLE, LookUpAddr], DEST -> " <<  dest);
+
+            NS_LOG_DEBUG("[RTABLE, LookUpAddr], DEST -> " <<  dest);
+
             auto it = m_routes.find(dest);
             if (it == m_routes.end()) {
                 return Ipv4Address("0.0.0.0"); // Return an invalid address if route doesn't exist
@@ -224,25 +296,24 @@ namespace ns3
             // Find the next hop in the route
             auto nextHopIt = std::find(route.begin(), route.end(), source);
 
-            if (nextHopIt != route.end()){
+            if ((nextHopIt + 1) != route.end()){
+                NS_LOG_DEBUG("[RTABLE, LookUpAddr], next hop -> " <<  *(nextHopIt + 1));
                 return  *(nextHopIt + 1);
             } 
                 else {
                 //it's the last hop
-                return route.front();
+                NS_LOG_DEBUG("[RTABLE, LookUpAddr], next hop last hop-> " <<  dest);
+                return dest;
             }
 
         }   
 
-    
-
-
-
-
     std::vector<bool> 
     RoutingTable::CreateBloomFilter(){
             
-            uint32_t obtimalNumberBits = ceil((GetSize() * m_num_hash_functions) / log(2));
+            uint32_t nWorstCaseTuple = 270;
+
+            uint32_t obtimalNumberBits = ceil((nWorstCaseTuple * m_num_hash_functions) / log(2));
             std::vector<bool> bitArray(obtimalNumberBits, false);
 
             CryptoPP::byte digest[CryptoPP::SHA256::DIGESTSIZE];
@@ -296,22 +367,27 @@ namespace ns3
             return bitArray;
     }
 
+
+    /* Since the bloon filter is a probilistic data structure, it is possibile to decide the probability in having false positive
+    changing either the lenght of the bloom filter or the number of hashing functions.
+    K is the number of hashing functions
+    M is the lenght of the bloom filter */
     bool
         RoutingTable::ProcessSetReconciliation(std::vector<bool> bfs){
-            // std::vector<bool> myBloomFilter;
-            // myBloomFilter = CreateBloomFilter();
+           
+            // only to test -> K = 1, M = max dimension routing table in the worst case scenaio -> se 6 nodi è 1700?
 
-            
+            uint32_t nWorstCaseTuple = 270;
+
             // starting checking tuple by tuple
-            uint32_t obtimalNumberBits = ceil((GetSize() * m_num_hash_functions) / log(2));
+            uint32_t obtimalNumberBits = ceil((nWorstCaseTuple * m_num_hash_functions) / log(2));
             std::vector<bool> bitArray(obtimalNumberBits, false);
 
             CryptoPP::byte digest[CryptoPP::SHA256::DIGESTSIZE];
             
             NS_LOG_DEBUG("BF own size -> " << obtimalNumberBits << ", BF received size-> " << bfs.size());
 
-            std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> senderTuplMissing;
-
+            
             for(const auto& t : m_tuples){
                 // Extract elements from the tuple
                 Ipv4Address srcAddress = std::get<0>(t);
@@ -343,22 +419,49 @@ namespace ns3
                 }
                 else{
                     NS_LOG_DEBUG("Tuple missing in sender -> " << srcAddress << ", " << dstAddress);
-                    senderTuplMissing.push_back(t);
+                    m_senderTuplMissing.push_back(t);
                 }
             }
 
-            if(senderTuplMissing.size() > 0){
+            if(m_senderTuplMissing.size() > 0){
                 NS_LOG_DEBUG("Missing Elements in sender set");
             }
-            else if(senderTuplMissing.size() == 0 and !m_finalRound){
+            else if(m_senderTuplMissing.size() == 0 and !m_finalRound){
                 NS_LOG_DEBUG("Seems not missing elements, final check round");
             }
             else{
                 NS_LOG_DEBUG("Set reconciliation terminated");
             }
 
-
             return true;
         }
+
+    std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> 
+    RoutingTable::GetMissingTuples(){
+        return m_senderTuplMissing;
+    }
+
+    void
+    RoutingTable::UpdateFileHistory(){
+       
+        
+       for (const auto& tuple : m_tuples) {
+            // Extract elements from the tuple
+            const Ipv4Address& originIP = std::get<0>(tuple);
+            const Ipv4Address& hop1IP = std::get<1>(tuple);
+            uint16_t repO = std::get<2>(tuple);
+            uint16_t repH = std::get<3>(tuple);
+            uint16_t GPSO = std::get<4>(tuple);
+            uint16_t GPSH = std::get<5>(tuple);
+            uint16_t batteryO = std::get<6>(tuple);
+            uint16_t batteryH = std::get<7>(tuple);
+                
+            // write elements
+            m_outputFile << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH << std::endl;
+        }
+
+    }
+    
+
 
     }

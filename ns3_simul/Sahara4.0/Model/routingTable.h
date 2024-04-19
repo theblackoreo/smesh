@@ -10,6 +10,12 @@
 
 #include <cryptopp/sha.h>
 #include <cryptopp/hex.h>
+#include <iomanip>
+#include <iostream>
+#include <tuple>
+#include <string>
+#include <limits>
+#include <fstream>
 
 
 namespace ns3{
@@ -20,6 +26,7 @@ class RoutingTable{
 public:
 	
 	RoutingTable();
+    ~RoutingTable();
 	
 	bool AddTuple(Ipv4Address originIP, Ipv4Address hop1IP, uint16_t reputation_O, uint16_t reputation_H, uint16_t GPS_O,
      uint16_t GPS_H, uint16_t battery_O, uint16_t battery_H);
@@ -41,7 +48,10 @@ public:
     Ipv4Address LookUpAddr(Ipv4Address source, Ipv4Address dest); 
     std::vector<bool> CreateBloomFilter();
     bool ProcessSetReconciliation(std::vector<bool> bfs);
+    std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> GetMissingTuples();
 
+    void SetFile(std::string fileName);
+    void UpdateFileHistory();
 
 private:
 	std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> m_tuples;
@@ -55,7 +65,12 @@ private:
 
     // create crypto++ hash object
     CryptoPP::SHA256 m_hash; 
+
+    std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> m_senderTuplMissing;
 	
+    // store file
+    std::ofstream m_outputFile;
+    
 
 };
 }

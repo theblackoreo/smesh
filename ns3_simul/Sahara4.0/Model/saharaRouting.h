@@ -16,11 +16,17 @@
 #include "saharaPacket.h"
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
-
+#include "saharaSync.h"
 #include "saharaQueue.h"
 
 #include <map>
 #include <vector>
+#include <iomanip>
+#include <iostream>
+#include <tuple>
+#include <string>
+#include <limits>
+#include <fstream>
 
 /*
     This is an Alpha implementation of the Sahara routing protocol.
@@ -73,6 +79,7 @@ class SaharaRouting : public Ipv4RoutingProtocol
 
     void StartSetReconciliation();
     
+    
  
   private:
     void NotifyInterfaceUp(uint32_t interface) override;
@@ -95,47 +102,83 @@ class SaharaRouting : public Ipv4RoutingProtocol
 
 
     // managing timer for running node routing functions
-    Timer m_auditDijkstra;
-    Timer m_auditFloodingTimer;
-    Timer m_auditLookUpPacketQueue;
+    Timer m_auditFloodingTimer; // flooding
+    Timer m_auditDijkstra; // disjkstra
+    Timer m_auditLookUpPacketQueue; // queue
+    Timer m_auditTimeoutAckSR; // timeout ack from children during set reconciliation
+
 
     // millisecond to start
     uint16_t m_timeToStartFlooding = 1000;
-    uint16_t m_timeToStartDijskra = 12000;
-    uint16_t m_timeToStartPacketQueue = 13000;
+    uint16_t m_timeToStartDijskra = 10000;
+    uint16_t m_timeToStartPacketQueue = 25000;
 
     // millisecond to set up frequency
     uint16_t m_frequencyFlooding = 30000;
     uint16_t m_frequencyDijskra = 38000;
-    uint16_t m_frequencyLookUpPacketQueue = 9000;
+    uint16_t m_frequencyLookUpPacketQueue = 2000;
+
+    // ack reception timeslot
+    uint16_t m_ackTimeSlot = 2000;
 
     uint32_t m_currentSequenceNumber;
     PacketQueue m_queue;
+
+    // to manage set reconciliation
+    SaharaSync m_sync;
+    std::vector<bool> parentBF;
+    std::map<Ipv4Address, std::vector<bool>> m_listBFChildren;
+    std::map<Ipv4Address, bool> m_listSetRecDone;
+
+
+    Ipv4Address m_parentIP = Ipv4Address("0.0.0.0");
+
     
-
-
+    
+    
 
   private:
     void SendHello();
 
-    void TestRecv(Ptr<Socket> socket);
+    void RecvPacket(Ptr<Socket> socket);
 
     void StartRouting();
 
     void PauseRouting();
 
-    void ProcessHello(Ptr<Packet> packet);
+    // manage flooding and dijskra
+    void ProcessHello(SaharaHeader sh);
     void ForwardHello(std::string msg);
     void SendPeriodicUpdate();
-
     bool IsOwnAddress (Ipv4Address originatorAddress);
     void BroadcastPacket(Ptr<Packet> packet);
     void AuditHellos();
     void Dijkstra();
-    void BroadcastPacketSET(Ptr<Packet> packet);
-    void ProcessSetReconciliation(Ptr<Packet> packet);
+    
+    // manage packet queue
     void LookupQueue();
-    void sendPacketFromQueue(Ipv4Address dst, Ipv4Address nextHop);
+    void SendPacketFromQueue(Ipv4Address dst, Ipv4Address nextHop);
+
+    // manage set reconciliation
+    void BroadcastPacketSET(Ptr<Packet> packet);
+    void ProcessSetReconciliation(SaharaHeader sh);
+    void ReceiveSetRecReq(Ptr<Socket> socket);
+    void SendOwnBF();
+    void NoChildren(); 
+    void ProcessSetAck(SaharaHeader sh);
+    void ProcessReceivedMissing(SaharaHeader sh);
+    void InverseSetRec();
+    void ProcessReceivedMissingInverse(SaharaHeader sh);
+    void SendPacketToDest(Ptr<Packet> packet, Ipv4Address dest);
+
+    
+
+    // to test what nodes contains after some times
+    void PrintAllInfo();
+    void PrintRoutingTable();
+   
+
+    
 };
 
 } // namespace sahara
