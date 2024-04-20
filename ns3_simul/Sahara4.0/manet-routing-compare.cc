@@ -104,6 +104,7 @@ RoutingExperiment::ReceivePacket(Ptr<Socket> socket)
     {
         bytesTotal += packet->GetSize();
         packetsReceived += 1;
+        
         NS_LOG_UNCOND(PrintReceivedPacket(socket, packet, senderAddress));
     }
 }
@@ -127,13 +128,11 @@ RoutingExperiment::CheckThroughput()
 Ptr<Socket>
 RoutingExperiment::SetupPacketReceive(Ipv4Address addr, Ptr<Node> node)
 {
-    TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
-    Ptr<Socket> sink = Socket::CreateSocket(node, tid);
-    InetSocketAddress local = InetSocketAddress(addr, port);
-    sink->Bind(local);
-    sink->SetRecvCallback(MakeCallback(&RoutingExperiment::ReceivePacket, this));
+    Ptr<Socket> recvSocket = Socket::CreateSocket (node, UdpSocketFactory::GetTypeId ());
+    recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), port)); // Listen on port 9
+    recvSocket->SetRecvCallback (MakeCallback (&RoutingExperiment::ReceivePacket, this));
 
-    return sink;
+    return recvSocket;
 }
 
 void
@@ -159,6 +158,8 @@ int
 main(int argc, char* argv[])
 {
     RoutingExperiment experiment;
+    //LogComponentEnable("saharaRoutingProtocol", LOG_LEVEL_ALL);
+    //LogComponentEnable("routingTable", LOG_LEVEL_ALL);
     experiment.CommandSetup(argc, argv);
     experiment.Run();
 
@@ -195,12 +196,13 @@ RoutingExperiment::Run()
     // Set Non-unicastMode rate to unicast mode
     Config::SetDefault("ns3::WifiRemoteStationManager::NonUnicastMode", StringValue(phyMode));
 
+
     NodeContainer adhocNodes;
     adhocNodes.Create(nWifis);
 
     // setting up wifi phy and channel using helpers
     WifiHelper wifi;
-    wifi.SetStandard(WIFI_STANDARD_80211b);
+    wifi.SetStandard(WIFI_STANDARD_80211n);
 
     YansWifiPhyHelper wifiPhy;
     YansWifiChannelHelper wifiChannel;
@@ -223,7 +225,7 @@ RoutingExperiment::Run()
     NetDeviceContainer adhocDevices = wifi.Install(wifiPhy, wifiMac, adhocNodes);
 
 
-
+/*
      MobilityHelper mobilityAdhoc;
   mobilityAdhoc.SetPositionAllocator ("ns3::GridPositionAllocator",
                                   "MinX", DoubleValue (0.0),
@@ -236,6 +238,7 @@ RoutingExperiment::Run()
   mobilityAdhoc.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
     
   mobilityAdhoc.Install(adhocNodes);
+  */
   
     /*
     MobilityHelper mobilityAdhoc;
@@ -264,6 +267,28 @@ RoutingExperiment::Run()
     mobilityAdhoc.Install(adhocNodes);
     streamIndex += mobilityAdhoc.AssignStreams(adhocNodes, streamIndex);
     */
+
+   MobilityHelper mobility;
+    ObjectFactory pos;
+    pos.SetTypeId("ns3::RandomRectanglePositionAllocator");
+    pos.Set("X", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"));
+    pos.Set("Y", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"));
+
+    std::ostringstream speedConstantRandomVariableStream;
+    speedConstantRandomVariableStream << "ns3::ConstantRandomVariable[Constant=" << 1
+                                      << "]";
+
+    Ptr<PositionAllocator> taPositionAlloc = pos.Create()->GetObject<PositionAllocator>();
+    mobility.SetMobilityModel("ns3::RandomWaypointMobilityModel",
+                              "Speed",
+                              StringValue(speedConstantRandomVariableStream.str()),
+                              "Pause",
+                              StringValue("ns3::ConstantRandomVariable[Constant=2.0]"),
+                              "PositionAllocator",
+                              PointerValue(taPositionAlloc));
+    mobility.SetPositionAllocator(taPositionAlloc);
+
+     mobility.Install(adhocNodes);
 
     AodvHelper aodv;
     OlsrHelper olsr;
@@ -332,7 +357,7 @@ RoutingExperiment::Run()
 
         Ptr<UniformRandomVariable> var = CreateObject<UniformRandomVariable>();
         ApplicationContainer temp = onoff1.Install(adhocNodes.Get(i + m_nSinks));
-        temp.Start(Seconds(var->GetValue(15.0, 16.0)));
+        temp.Start(Seconds(var->GetValue(15.0, 17.0)));
         temp.Stop(Seconds(TotalTime));
     }
 

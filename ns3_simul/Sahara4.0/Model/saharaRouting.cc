@@ -645,7 +645,7 @@
       m_auditDijkstra.Schedule (MilliSeconds (m_frequencyDijskra));
       
       if(m_intNodeID == 1){
-        Simulator::Schedule(MilliSeconds(12000 + 100*m_intNodeID), &SaharaRouting::StartSetReconciliation, this);
+        //Simulator::Schedule(MilliSeconds(12000 + 100*m_intNodeID), &SaharaRouting::StartSetReconciliation, this);
       }
       
     }

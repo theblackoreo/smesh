@@ -282,6 +282,13 @@ namespace ns3
 
     Ipv4Address RoutingTable::LookUpAddr(Ipv4Address source, Ipv4Address dest){
             
+            for (const auto& e : m_routes) {
+            NS_LOG_DEBUG("Dest: " << e.first);
+            for (const auto& hop : e.second) {
+                NS_LOG_DEBUG(hop);
+            }
+        }
+        NS_LOG_DEBUG("End______________________________________");
 
             NS_LOG_DEBUG("[RTABLE, LookUpAddr], DEST -> " <<  dest);
 
@@ -295,8 +302,22 @@ namespace ns3
 
             // Find the next hop in the route
             auto nextHopIt = std::find(route.begin(), route.end(), source);
+            
+            if((nextHopIt-1) == route.begin()){
+                 NS_LOG_DEBUG("[RTABLE, LookUpAddr], are neighbors-> " <<  dest);
+                return dest;
+            }
+            else{
+                NS_LOG_DEBUG("[RTABLE, LookUpAddr]-> " <<   *(nextHopIt-1));
+                return *(nextHopIt-1);
+            }
+           
 
-            if ((nextHopIt + 1) != route.end()){
+            
+
+
+            /*
+            if (nextHopIt != route.end() &&  (nextHopIt + 1) != route.end()){
                 NS_LOG_DEBUG("[RTABLE, LookUpAddr], next hop -> " <<  *(nextHopIt + 1));
                 return  *(nextHopIt + 1);
             } 
@@ -305,6 +326,7 @@ namespace ns3
                 NS_LOG_DEBUG("[RTABLE, LookUpAddr], next hop last hop-> " <<  dest);
                 return dest;
             }
+            */
 
         }   
 
