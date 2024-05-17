@@ -20,8 +20,6 @@
   #include <sys/time.h>
   #include "ns3/random-variable-stream.h"
   #include "ns3/udp-header.h"
-
-  
   #include <cryptopp/sha.h>
   #include <cryptopp/hex.h>
   #include <iomanip>
@@ -30,6 +28,8 @@
   #include <string>
   #include <limits>
   #include <fstream>
+
+
 
 
   namespace ns3
@@ -57,6 +57,8 @@
   {
     NS_LOG_DEBUG("Adding routing protocol...");
     Ptr<UniformRandomVariable> random = CreateObject<UniformRandomVariable>();
+
+   
     
   }
 
@@ -64,8 +66,6 @@
   {
   }
 
-
-      
   void
   SaharaRouting::SetIpv4(Ptr<Ipv4> ipv4)
   {
@@ -84,8 +84,7 @@
 
       NS_LOG_DEBUG("Assigned main address...");
 
-      m_saharaPort = 9;
-      m_saharaPortSET = 10;
+      m_saharaPort = 256;
       
 
       NS_LOG_DEBUG("All setted, starting routing protocol...");
@@ -100,38 +99,88 @@
 
       Address sourceAddr;
       Ptr<Packet> packet = socket->RecvFrom (sourceAddr);
+
+
+      // encryption part -> to work later
+      /* 
+
+       uint32_t packetSize2 = packet->GetSize();
+       NS_LOG_DEBUG("Packet received size " << packet->GetSize());
+    uint8_t *data = new uint8_t[packetSize2];
+    packet->CopyData(data, packetSize2);
+
+             std::stringstream oss;
+    for (uint32_t i = 0; i < packet->GetSize(); i++) {
+        // Print each byte as a hexadecimal value
+        oss << std::hex << std::uppercase << static_cast<int>(data[i]);
+        // Add a space between bytes for readability
+        if (i < packet->GetSize() - 1) {
+            oss << " ";
+        }
+    }
+
+    NS_LOG_DEBUG("Packet received content " << oss.str());
+
+    //packet = m_shCrypto.EncryptHeader(packet);
+    //packet = m_shCrypto.DecryptHeader(packet);
+             
+             */
       //InetSocketAddress inetSocketAddr = InetSocketAddress::ConvertFrom (sourceAddr);
+      NS_LOG_DEBUG(packet->GetSize());
+      m_tot_byte_processed = m_tot_byte_processed + packet->GetSize();
 
       SaharaHeader sh;
+
+
       packet->RemoveHeader(sh);
 
        NS_LOG_DEBUG("[RecvPacket] Packet received TYPE -> " << sh.GetMessageType());
 
+      m_packets_processed = m_packets_processed + 1;
+      
       switch (sh.GetMessageType())
       {
       case sahara::SaharaHeader::HELLO_MESSAGE:
-       
         ProcessHello(sh);
         break;
-      case sahara::SaharaHeader::SET_BF:
-       
-        ProcessSetReconciliation(sh);
-        break;
-      case sahara::SaharaHeader::SET_ACK:
-        ProcessSetAck(sh);
-        break;
-
+     
       case sahara::SaharaHeader::SEND_MISSING_C2P:
+        
         ProcessReceivedMissing(sh);
         break;
-      
 
       case sahara::SaharaHeader::SEND_MISSING_P2C:
+       
         ProcessReceivedMissingInverse(sh);
         break;
-      }
+      
+      case sahara::SaharaHeader::SR_HELLO:
+        
+        ProcessSRHello(sh);
+        break;
+      
+      case sahara::SaharaHeader::ROOT_SR_HELLO:
+        
+        ProcessRootHello(sh);
+        break;
+
+      case sahara::SaharaHeader::SEND_MISSING_P2C_ACK:
+      
+        ProcessInverseAck(sh);
+        break;
+
+      case sahara::SaharaHeader::ASK_BF:
+        
+        SendToChildBF(sh);
+        break;
+        
+      case sahara::SaharaHeader::SEND_BF:
+        
+        ReceivedFromParentBF(sh);
+        break;
       
     
+  }
   }
 
    // A node receives set reconciliation request when it receives a BF from a node 
@@ -142,13 +191,8 @@
 
     Address sourceAddr;
     Ptr<Packet> packet = socket->RecvFrom (sourceAddr);
-    
-    //ProcessSetReconciliation(packet);
-
-  
   }
 
- 
 
   void
   SaharaRouting::DoDispose()
@@ -224,7 +268,7 @@
         m_socketAddresses[socket] = m_ipv4->GetAddress (i, 0);
       }
 
-      // create sockets for set reconciliation
+     // create sockets for set reconciliation
       for (uint32_t i = 0 ; i < m_ipv4->GetNInterfaces () ; i++)
       {
         Ipv4Address ipAddress = m_ipv4->GetAddress (i, 0).GetLocal ();
@@ -251,15 +295,21 @@
       m_auditDijkstra.SetFunction(&SaharaRouting::Dijkstra, this);
       m_auditLookUpPacketQueue.SetFunction(&SaharaRouting::LookupQueue, this);
       m_auditTimeoutAckSR.SetFunction (&SaharaRouting::NoChildren, this);
+      m_auditTimeoutAckSRNEW.SetFunction(&SaharaRouting::NoChildrenNew,this);
+      m_auditTimeoutAckInverseSR.SetFunction(&SaharaRouting::InverseSetRec, this);
+      m_SR.SetFunction(&SaharaRouting::StartTopologyBuilding, this);
+      
+
+      
+
 
       u_int32_t xxx = 100;
       m_queue.SetMaxQueueLen(xxx);
       m_queue.SetQueueTimeout(Seconds(30));
 
+      m_packets_processed = 0;
+      m_tot_byte_processed = 0;
 
-    
-     
-      
       ns3::Ptr<ns3::UniformRandomVariable> rng = ns3::CreateObject<ns3::UniformRandomVariable>();
       rng->SetAttribute("Min", ns3::DoubleValue(15.0));
       rng->SetAttribute("Max", ns3::DoubleValue(50.0));
@@ -277,19 +327,30 @@
       r_Table.SetFile(fileName);
 
 
-      // Start timers
-      m_auditFloodingTimer.Schedule (MilliSeconds (m_timeToStartFlooding + randomNumber*static_cast<double>(m_intNodeID)));
+      if(m_flooding_ON){
 
-      // double flooding, to test if it is better
-      //Simulator::Schedule(MilliSeconds(m_timeToStartFlooding + 2000 + randomNumber2*static_cast<double>(m_intNodeID)), &SaharaRouting::SendHello, this);
+        m_auditFloodingTimer.Schedule (MilliSeconds (m_timeToStartFlooding + randomNumber*static_cast<double>(m_intNodeID)));
+        m_auditDijkstra.Schedule (MilliSeconds (m_timeToStartDijskra + randomNumber*static_cast<double>(m_intNodeID)));
+        Simulator::Schedule(MilliSeconds(15000+ m_intNodeID), &SaharaRouting::PrintStatistics, this);
+        
+      }
 
-      m_auditDijkstra.Schedule (MilliSeconds (m_timeToStartDijskra + randomNumber*static_cast<double>(m_intNodeID)));
+      if(m_sr_ON){
+        
+        m_SR.Schedule(MilliSeconds(m_startSR));
+        
+        //Simulator::Schedule(MilliSeconds(12000), &SaharaRouting::StartTopologyBuilding, this);
+
+       Simulator::Schedule(MilliSeconds(15000+ m_intNodeID), &SaharaRouting::PrintStatistics, this);
+
+       //Simulator::Schedule(MilliSeconds(15000), &SaharaRouting::ActiveDropping, this);
+        
+
+      }
+
+     m_auditLookUpPacketQueue.Schedule (MilliSeconds (m_timeToStartPacketQueue + 2*static_cast<double>(m_intNodeID)));
+     
       
-      m_auditLookUpPacketQueue.Schedule (MilliSeconds (m_timeToStartPacketQueue + 2*static_cast<double>(m_intNodeID)));
-
-      Simulator::Schedule(MilliSeconds(25000 + m_intNodeID), &SaharaRouting::PrintAllInfo, this);
-
-
   } 
 
   void
@@ -321,7 +382,7 @@
                               Socket::SocketErrno& sockerr){
       
     
-       
+      NS_LOG_DEBUG( m_intNodeID << " [RouteOutput]");
       // manage broadcast
       for (std::map<Ptr<Socket> , Ipv4InterfaceAddress>::const_iterator i =
         m_socketAddresses.begin (); i != m_socketAddresses.end (); i++)
@@ -333,8 +394,6 @@
           Ptr<Ipv4Route> ipv4Route = Create<Ipv4Route>();
           ipv4Route->SetDestination(broadcastAddr);
           ipv4Route->SetSource(m_mainAddress); // Assuming m_mainAddress is the local address
-          //ipv4Route->SetOutputDevice(oif); // Assuming oif is the output interface for the local node
-          //ipv4Route->SetGateway(Ipv4Address("255.255.255.255"));
           int32_t interface = m_ipv4->GetInterfaceForAddress(m_mainAddress);
           ipv4Route->SetOutputDevice(m_ipv4->GetNetDevice(interface)); 
           ipv4Route->SetGateway(broadcastAddr);
@@ -352,7 +411,7 @@
         else{
         
           Ipv4Address nextHop = r_Table.LookUpAddr(m_mainAddress, header.GetDestination());
-          NS_LOG_DEBUG("Next hop: " << nextHop);
+          NS_LOG_DEBUG( "Node Id " << m_intNodeID << ", Destination " <<  header.GetDestination() <<", Next hop: " << nextHop);
           if(nextHop ==  "0.0.0.0"){
             NS_LOG_DEBUG("Next hop not found, local delivery to queue...");
             int32_t interface = m_ipv4->GetInterfaceForAddress(m_mainAddress);
@@ -402,7 +461,16 @@
                               const LocalDeliverCallback& lcb,
                               const ErrorCallback& ecb)
   {   
-      
+      if(m_nodeDeletePackets && m_IDcompromisedNode == m_intNodeID && Simulator::Now().GetSeconds() > 15 ){
+        ns3::Ptr<ns3::UniformRandomVariable> rng = ns3::CreateObject<ns3::UniformRandomVariable>();
+        rng->SetAttribute("Min", ns3::DoubleValue(0.0));
+        rng->SetAttribute("Max", ns3::DoubleValue(100.0));
+        double randomNumber = rng->GetValue();
+        if(randomNumber < 80){
+          return false;
+        }
+      }
+
       //NS_LOG_DEBUG ("[RouteInput] Called");
       Ipv4Address destinationAddress = header.GetDestination ();
       Ipv4Address sourceAddress = header.GetSource ();
@@ -412,6 +480,7 @@
 
       // Drop if packet was originated by this node
       if (IsOwnAddress(sourceAddress) == true) {
+        
           return true; // avoid loops
       }
       
@@ -531,6 +600,7 @@
 
   void
   SaharaRouting::BroadcastPacket(Ptr<Packet> packet){
+    // packet = m_shCrypto.EncryptHeader(packet);
 
       //NS_LOG_DEBUG ("[BroadcastPacket] Called");
       for (std::map<Ptr<Socket> , Ipv4InterfaceAddress>::const_iterator i =
@@ -551,12 +621,6 @@
       
     //Broadcast a fresh HELLO message to immediate neighbors
     SendHello ();
-
-
-    ns3::Ptr<ns3::UniformRandomVariable> rng = ns3::CreateObject<ns3::UniformRandomVariable>();
-    rng->SetAttribute("Min", ns3::DoubleValue(0.0));
-    rng->SetAttribute("Max", ns3::DoubleValue(10.0));
-    double randomNumber = rng->GetValue();
     //Timer re-initialization
     m_auditFloodingTimer.Schedule (MilliSeconds (m_frequencyFlooding));
 
@@ -598,7 +662,7 @@
         //SaharaHeader(originIP, m_mainAddress, reputation_O, m_intNodeID, GPS_O, GPS_H, battery_O, battery_H);
         packet->AddHeader(sh);
       
-      Simulator::Schedule(MilliSeconds(2 + m_intNodeID), &SaharaRouting::BroadcastPacket, this, packet);
+      Simulator::Schedule(MilliSeconds(2*m_intNodeID), &SaharaRouting::BroadcastPacket, this, packet);
 
       // BroadcastPacket (packet);
 
@@ -619,13 +683,13 @@
         sh.SetBattery_O(battery_H);
         //SaharaHeader(originIP, hop1IP, reputation_O,reputation_H, GPS_O, GPS_H, battery_O, battery_H);
         packet->AddHeader(sh);
-        Simulator::Schedule(MilliSeconds(2 + m_intNodeID), &SaharaRouting::BroadcastPacket, this, packet);
+        Simulator::Schedule(MilliSeconds(2*m_intNodeID), &SaharaRouting::BroadcastPacket, this, packet);
               
       }
       
      
-        NS_LOG_DEBUG("Print RT -> " <<m_mainAddress );
-        r_Table.PrintAll();        
+        //NS_LOG_DEBUG("Print RT -> " <<m_mainAddress );
+        //r_Table.PrintAll();        
       
 
   }
@@ -635,18 +699,18 @@
         
       NS_LOG_DEBUG("[Dijkstra] Entered");
 
-     
       r_Table.RunDijkstra(m_mainAddress);
-      r_Table.UpdateFileHistory();
+
+      //r_Table.UpdateFileHistory();
         
       
   
       // reschedule timer to evaluation Dijkstra
-      m_auditDijkstra.Schedule (MilliSeconds (m_frequencyDijskra));
-      
-      if(m_intNodeID == 1){
-        //Simulator::Schedule(MilliSeconds(12000 + 100*m_intNodeID), &SaharaRouting::StartSetReconciliation, this);
+      if(!m_auditDijkstra.IsRunning()){
+        m_auditDijkstra.Schedule (MilliSeconds (m_frequencyDijskra));
       }
+      
+     
       
     }
 
@@ -700,7 +764,7 @@
        }
     }
 
-  /*SET RECONCILIATION_______________________________________________________________________________________*/
+  /*SET RECONCILIATION__________________________________________________________________________________________________________________________________________________*/
   /*
   This function is used in order to perform set reconciliation in a distributed way.
   The source node sends its BF to the neighbors
@@ -722,161 +786,233 @@
   */
 
 
- 
-  void
-  SaharaRouting::StartSetReconciliation(){
-    
-    // 1) send BF to neighbors in broadcast and wait ack 
-      if(m_intNodeID == 1){ // this is only to test (node 1 is the root)
-
-        NS_LOG_DEBUG(m_intNodeID << "-> [START_SET_RECONCILIATION]");
-        std::vector<bool> bloomFilter;
-        bloomFilter = r_Table.CreateBloomFilter();
-        m_parentIP = m_mainAddress;
-
-
-        Ptr<Packet> packet = Create<Packet> ();
-        SaharaHeader sh;
-        sh.SetMessageType(sahara::SaharaHeader::SET_BF);
-        sh.SetParentIP(m_mainAddress);
-        sh.SetBF(bloomFilter);
-
-        packet->AddHeader(sh);
-        
-        // broadcast BF using a dedicated port for set_reconciliation
-        m_auditTimeoutAckSR.Schedule(MilliSeconds(m_ackTimeSlot + 2*static_cast<double>(m_intNodeID)));
-
-        
-        BroadcastPacketSET(packet); 
-      }
-      
-  }
-
-
-  void
-  SaharaRouting::ProcessSetAck(SaharaHeader sh){
-          NS_LOG_DEBUG(m_intNodeID << " Ack received, stopping timer");
-          
-          m_listBFChildren[sh.GetChildIP()] = sh.GetBloomFilter();
-          m_listSetRecDone[sh.GetChildIP()] = false;
-          m_auditTimeoutAckSR.Cancel();
-
-          std::vector<bool> receivedBF;
-          receivedBF = sh.GetBloomFilter();
-
-
-          std::string toPrintTosee;
-        for (int i = 0; i < receivedBF.size(); ++i) {
-            toPrintTosee += std::to_string(receivedBF[i]);
-        }
-          NS_LOG_DEBUG(m_intNodeID << "-> bf of the child " << sh.GetChildIP() <<  "-> size: " << sh.GetSizeBF() << " -> " << toPrintTosee);
-  }
-
-  void
-    SaharaRouting::ProcessSetReconciliation(SaharaHeader sh){
-
-      if(m_parentIP != "0.0.0.0"){
-        return;
-      }
-      
-       
-        m_parentIP = sh.GetParentIP();
-        parentBF = sh.GetBloomFilter();
-       
-
-        NS_LOG_DEBUG("Parent IP -> " << m_parentIP);
-
-
-        // this is only to print
-        std::string toPrintTosee;
-        for (int i = 0; i < parentBF.size(); ++i) {
-            toPrintTosee += std::to_string(parentBF[i]);
-        }
-        NS_LOG_DEBUG(m_intNodeID << ": bloom filter received -> " << toPrintTosee);
-        
-
-        // reply with ack
-        SaharaHeader shAck;
-        shAck.SetMessageType(sahara::SaharaHeader::SET_ACK);
-        shAck.SetChildIP(m_mainAddress);
-        shAck.SetBF(r_Table.CreateBloomFilter());
-        
-
-        //SaharaHeader(m_mainAddress, true);
-        Ptr<Packet> ackPacket = Create<Packet>();
-        ackPacket->AddHeader(shAck);
-
-        Simulator::Schedule(MilliSeconds(10 + 2*m_intNodeID), &SaharaRouting:: SendPacketToDest, this, ackPacket, m_parentIP);
-
-        
-        // send own bloom filter
-        SendOwnBF();
-      
-    }
-
-    void
-    SaharaRouting::SendOwnBF(){
-
-        NS_LOG_DEBUG(m_intNodeID << "-> [SendOwnBF]");
-        std::vector<bool> bloomFilter;
-        bloomFilter = r_Table.CreateBloomFilter();
-
-        Ptr<Packet> packet = Create<Packet> ();
-        SaharaHeader sh;
-        sh.SetMessageType(sahara::SaharaHeader::SET_BF);
-        sh.SetParentIP(m_mainAddress);
-        sh.SetBF(bloomFilter);
-
-        packet->AddHeader(sh);
-
-        // broadcast BF using a dedicated port for set_reconciliation
-        m_auditTimeoutAckSR.Schedule(MilliSeconds(m_ackTimeSlot + 2*static_cast<double>(m_intNodeID)));
-
-        
-        Simulator::Schedule(MilliSeconds(10 + 2*m_intNodeID), &SaharaRouting::BroadcastPacketSET, this, packet);  
-
-    }
-
 
     // when a node sends in broadcast a packet it will wait for acks from children. 
     // In case node doesn't receive at least one ack in a timeframe -> no children
     // ASSUMPTION: we assume that acks if sent will arrive at 100%, otherwise a duble ack mechanims or other solutions 
     // need to be implemeted
     // NB-> implement static routing for direct paths ????? maybe not beacuse it doesn't know the neighbor yet
+
+  
+
+  // root starts set reconciliation by sending a message type: ROOT_SR_HELLO 
+  void
+  SaharaRouting::StartTopologyBuilding(){
+
+      ResetVariablesUpdate();
+
+    // 1) send BF to neighbors in broadcast and wait ack 
+      if(m_intNodeID == 12){ // this is only to test (node 12 is the root), but in the real case the node with highest rep and lower id will start
+
+        NS_LOG_DEBUG(m_intNodeID << "-> [START_TOPOLOGY_BUILDING]");
+
+        // the root is the parent of itself
+        m_parentIP = m_mainAddress;
+
+        Ptr<Packet> packet = Create<Packet> ();
+       
+        uint16_t init = 0;
+        uint16_t def = 22;
+        SaharaHeader sh;
+        
+        sh.SetMessageType(sahara::SaharaHeader::ROOT_SR_HELLO);
+        sh.SetOriginIP(m_mainAddress);
+        sh.SetReputation_O(m_intNodeID);
+        sh.SetGPS_O(def);
+        sh.SetBattery_O(def);
+
+        //NS_LOG_DEBUG ("[SendHello] Sending Hello " << m_mainAddress << ", " << Ipv4Address("0.0.0.0") << ", " << m_intNodeID << ", " << init << ", " << init);    
+
+        packet->AddHeader(sh);
+      
+        m_auditTimeoutAckSRNEW.Schedule(MilliSeconds(m_ackTimeSlot + 2*static_cast<double>(m_intNodeID)));
+
+        Simulator::Schedule(MilliSeconds(10), &SaharaRouting::BroadcastPacket, this, packet);
+
+        // every m_frequencySR do update
+        m_SR.Schedule(MilliSeconds(m_frequencySR));
+        
+      }
+  }
+
+
+  // all root's children receive the ROOT_SR_HELLO
+  void
+  SaharaRouting::ProcessRootHello(SaharaHeader sh){
+
+    if(m_parentIP != Ipv4Address("0.0.0.0")){
+      return;
+    }
+
+    Ipv4Address originIP = sh.GetOriginIP();
+    uint16_t reputation_O = sh.GetReputation_O();
+    uint16_t GPS_O = sh.GetGPS_O();
+    uint16_t battery_O = sh.GetBattery_O();
+
+    NS_LOG_DEBUG(m_intNodeID << "-> [ProcessRootHello] received hello from parent: " << originIP);
+
+    // set node's parent
+    m_parentIP = originIP;
+
+    // send my data in broadcast 
+    uint16_t init = 0;
+    uint16_t def = 22;
+
+    SaharaHeader shAck;
+    shAck.SetMessageType(sahara::SaharaHeader::SR_HELLO);
+    shAck.SetOriginIP(m_mainAddress);
+    shAck.SetParentIP(m_parentIP);
+    shAck.SetReputation_O(m_intNodeID);
+    shAck.SetGPS_O(def);
+    shAck.SetBattery_O(def);
+
+    //SaharaHeader(m_mainAddress, true);
+    Ptr<Packet> ackPacket = Create<Packet>();
+    ackPacket->AddHeader(shAck);
+
+    m_auditTimeoutAckSRNEW.Schedule(MilliSeconds(m_ackTimeSlot + 10*static_cast<double>(m_intNodeID)));
+    Simulator::Schedule(MilliSeconds(2*m_intNodeID), &SaharaRouting::BroadcastPacket, this, ackPacket);  
+    
+    r_Table.AddTuple(originIP, m_mainAddress, reputation_O,m_intNodeID, GPS_O, 22, battery_O, 22);
+
+  }
+
+  // children receives the SR_HELLO message and process it
+  void
+  SaharaRouting::ProcessSRHello(SaharaHeader sh){
+    
+    NS_LOG_DEBUG(m_intNodeID << " -> [ProcessSRHello] received data from: " << sh.GetParentIP());
+
+    // in this case I'm the parent so the reply comes from a child
+     if(sh.GetParentIP() == m_mainAddress){
+
+        NS_LOG_DEBUG(m_intNodeID << "NewAck received from " << sh.GetOriginIP() << " , stopping timer");
+        // stop timer beacause I've at list one child
+        m_auditTimeoutAckSRNEW.Cancel(); //
+
+        // add child to list of children
+        m_listSetRecDone[sh.GetOriginIP()] = false;
+
+        // add a tuple containing my info and the list of sender nodes -> it creates a pair
+        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_intNodeID, sh.GetReputation_O(), 22, sh.GetGPS_O(), 22, sh.GetBattery_O());
+       
+     }
+     // in this case I've not the parent, so it means the sender is my parent
+     else if (m_parentIP == Ipv4Address("0.0.0.0")){
+
+        NS_LOG_DEBUG(m_intNodeID << " -> [ProcessSRHello]: No parent, sender is my parent, sender ->" << sh.GetOriginIP());
+
+        // set sender as my parent
+        m_parentIP = sh.GetOriginIP();
+
+        // add a tuple containing my info + parent info -> create a tuple
+        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_intNodeID, sh.GetReputation_O(), 22, sh.GetGPS_O(), 22, sh.GetBattery_O());
+        
+        SendDataNew();
+        
+     }
+     // in this case I already have a parent and the sender is not my parent -> store information only because the sender is my neighbor
+     else {
+        
+        NS_LOG_DEBUG(m_intNodeID << " -> [ProcessSRHello]: Already have a parent");
+
+         // add a tuple containing my info + parent info -> create a tuple
+        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_intNodeID, sh.GetReputation_O(), 22, sh.GetGPS_O(), 22, sh.GetBattery_O());
+
+     }
+
+  }
+
+    // if a node doesn't receive SR_HELLO in a given time slot, we assume that a node has not children
     void
     SaharaRouting::NoChildren(){
       
-      // under the assumption that is node 1 that wants to start the set reconciliation
-      PrintAllInfo();
+      // run diskra on partial table to give a route to neighbors even if the connection is direct this step is mandatory
+      r_Table.RunDijkstra(m_mainAddress);
 
-      if(m_intNodeID==1){
+      // root node -> 12 is for example
+      if(m_intNodeID==12){
+
         // finish to do set rec from child, not starting the inverse process
+        for(const auto& t : m_listSetRecDone){
+          m_listSetRecDone[t.first] = false; // this ensure that the node has to start inverse SR with all children
+        }
+
+        // start inverse set reconcilition from root to children
         InverseSetRec();
         return;
       } 
 
+      // backward set recinciliation with parent (child -> parent)
 
-      // start set reconciliation with parent
+      // start set reconciliation with parent when a node doesn't have children 
       NS_LOG_DEBUG(m_intNodeID << ": [NoChildren] NO Ack received. Starting set reconciliation with parent");
 
-      
-      r_Table.ProcessSetReconciliation(parentBF);
-
-      // send missing tuples to sender
-      
-
-      Ptr<Packet> packet = Create<Packet> ();
-      SaharaHeader sh;
-      sh.SetMessageType(sahara::SaharaHeader::SEND_MISSING_C2P);
-      sh.SetChildIP(m_mainAddress);
-      
-      sh.SetMissingTuples(r_Table.GetMissingTuples());
+      // ask to parent the bloom filter and continue the procedure
+      AskToParentBF();
      
+    }
 
+    void
+    SaharaRouting::AskToParentBF(){
+      
+      NS_LOG_DEBUG(m_intNodeID << ", [AskToParentBF], asked BF to parent -> " << m_parentIP);
+      SaharaHeader sh;
+      sh.SetMessageType(sahara::SaharaHeader::ASK_BF);
+      sh.SetOriginIP(m_mainAddress);
+      sh.SetBF(r_Table.GetBloomFilter());
+      
+      Ptr<Packet> packet = Create<Packet> ();
       packet->AddHeader(sh);
-      Simulator::Schedule(MilliSeconds(10 + 2*m_intNodeID), &SaharaRouting:: SendPacketToDest, this, packet, m_parentIP);
+      Simulator::Schedule(MilliSeconds(2*m_intNodeID), &SaharaRouting:: SendPacketToDest, this, packet, m_parentIP);
+
+    }
+
+    // it is called when ASK_BF is received by the parent, this contains also the BF of the child to be stored to use later
+    void
+    SaharaRouting::SendToChildBF(SaharaHeader sh){
+      r_Table.RunDijkstra(m_mainAddress); // to update only to get neighbor, it not so useful, maybe a more effecient strategy can be adopted
+
+      NS_LOG_DEBUG(m_intNodeID << ", [SendToChildBF], received askBF from -> " << sh.GetOriginIP());
+
+      m_listBFChildren[sh.GetOriginIP()] = sh.GetBloomFilter();
+
+      SaharaHeader ack;
+
+      ack.SetMessageType(sahara::SaharaHeader::SEND_BF);
+      ack.SetBF(r_Table.GetBloomFilter());
+      Ptr<Packet> packet = Create<Packet> ();
+
+      packet->AddHeader(ack);
+
+      Simulator::Schedule(MilliSeconds(3*m_intNodeID), &SaharaRouting:: SendPacketToDest, this, packet, sh.GetOriginIP());
+
+    }
+
+    // after asked the BF of the parent, child can now evaluate parent's missing tuples
+    void
+    SaharaRouting::ReceivedFromParentBF(SaharaHeader sh){
+      
+      NS_LOG_DEBUG(m_intNodeID << ", [ReceivedFromParentBF], received BF from parent -> " << m_parentIP);
+
+      // retreive BF of the parent
+      m_parentBF = sh.GetBloomFilter();
+      r_Table.ProcessSetReconciliation(m_parentBF);
+
+      // send missing tuples to parent
+      Ptr<Packet> packet = Create<Packet> ();
+      SaharaHeader shm;
+      shm.SetMessageType(sahara::SaharaHeader::SEND_MISSING_C2P);
+      shm.SetChildIP(m_mainAddress);
+      
+      shm.SetMissingTuples(r_Table.GetMissingTuples());
+      packet->AddHeader(shm);
+      
+      NS_LOG_DEBUG(m_intNodeID << ", [ReceivedFromParentBF], sending missing tuples to parent -> " << m_parentIP);
+      Simulator::Schedule(MilliSeconds(3*m_intNodeID), &SaharaRouting:: SendPacketToDest, this, packet, m_parentIP);
        
       //NS_LOG_DEBUG ("[SendHello] Sending Hello " << m_mainAddress << ", " << Ipv4Address("0.0.0.0") << ", " << m_intNodeID << ", " << init << ", " << init);    
+
     }
 
     void 
@@ -903,12 +1039,11 @@
             r_Table.AddTuple(originIP, hop1IP, repO, repH, GPSO, GPSH, batteryO, batteryH);
                 
             // Print elements
-            NS_LOG_DEBUG("Tuple Missing in my node: " << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH);
+           // NS_LOG_DEBUG("Tuple Missing in my node: " << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH);
         }
         NS_LOG_DEBUG("End______________________________________");
         }
-        r_Table.RunDijkstra(m_mainAddress);
-
+        
         // Every parent node receives own missing tuples from every child either if a child doesn't have children or if a child has completed SR with sub-children
 
         // Every parent checks if there are still children that have not sent missing tuples
@@ -920,7 +1055,8 @@
         }
 
         // no more children to wait from missing tuples
-        Simulator::Schedule(MilliSeconds(10 + 2*m_intNodeID), &SaharaRouting:: NoChildren, this);
+        
+        Simulator::Schedule(MilliSeconds(1), &SaharaRouting:: NoChildren, this);
     
     }
 
@@ -929,6 +1065,8 @@
     void
     SaharaRouting::BroadcastPacketSET(Ptr<Packet> packet){
       NS_LOG_DEBUG(m_intNodeID << ": SENDING SET RECONCILIATION DATA");
+      
+      //packet = m_shCrypto.EncryptHeader(packet);
 
       //NS_LOG_DEBUG ("[BroadcastPacket] Called");
       for (std::map<Ptr<Socket> , Ipv4InterfaceAddress>::const_iterator i = m_socketAddressesSET.begin (); i != m_socketAddressesSET.end (); i++)
@@ -942,28 +1080,54 @@
 
     void 
     SaharaRouting::InverseSetRec(){
-
-      if(m_listBFChildren.size() == 0){
+      
+      NS_LOG_DEBUG( m_intNodeID << ", [InverseSerRec]");
+      
+      if(m_listBFChildren.size() == 0 and !m_SRCompleted){
+        m_SRCompleted = true;
         NS_LOG_DEBUG(m_intNodeID << " -> No children, END SET RECONCILIATION FOR THIS NODE");
+        
         r_Table.UpdateFileHistory();
+        r_Table.SetAllTupleFalse();
+        Dijkstra();
+        PrintAllInfo(); 
+        // m_packets_processed = 0;
+        // m_tot_byte_processed = 0;
         return;
       }
-      
+    
       for(const auto& t : m_listBFChildren){
-          SaharaHeader sh;
-          sh.SetMessageType(sahara::SaharaHeader::SEND_MISSING_P2C);
-          sh.SetParentIP(m_mainAddress);
-          r_Table.ProcessSetReconciliation(t.second);
-          sh.SetMissingTuples(r_Table.GetMissingTuples());
-          Ptr<Packet> packet = Create<Packet>();
-          packet->AddHeader(sh);
-
-          Simulator::Schedule(MilliSeconds(10 + 2*m_intNodeID), &SaharaRouting:: SendPacketToDest, this, packet, t.first);
- 
+          if(m_listSetRecDone[t.first] == false){
+            NS_LOG_DEBUG(m_intNodeID << "[Inverse SR], Child -> " << t.first);
+            SaharaHeader sh;
+            sh.SetMessageType(sahara::SaharaHeader::SEND_MISSING_P2C);
+            sh.SetParentIP(m_mainAddress);
+            r_Table.ProcessSetReconciliation(t.second);
+            sh.SetMissingTuples(r_Table.GetMissingTuples());
+            Ptr<Packet> packet = Create<Packet>();
+            packet->AddHeader(sh);
+            // start ack timer
+            
+            Simulator::Schedule(MilliSeconds(2*m_intNodeID), &SaharaRouting:: SendPacketToDest, this, packet, t.first);
+          }
       }
 
-      NS_LOG_DEBUG(m_intNodeID << " -> Yes children, just sent final set, END SET RECONCILIATION FOR THIS NODE");
+      for(const auto& t : m_listSetRecDone) {
+        if(t.second == false){
+          if(!m_auditTimeoutAckInverseSR.IsRunning()){
+            m_auditTimeoutAckInverseSR.Schedule(MilliSeconds(m_ackTimeSlot)); 
+          }
+          return;
+        }else{}
+        
+      }
+      NS_LOG_DEBUG(m_intNodeID << ", [SET RECONCILIATION] TERMINATED SUCCESSFULLY]");
       r_Table.UpdateFileHistory();
+      r_Table.SetAllTupleFalse();
+      PrintAllInfo();
+      // m_packets_processed = 0;
+      // m_tot_byte_processed = 0;
+      Dijkstra();
     }
 
     void
@@ -990,43 +1154,92 @@
             r_Table.AddTuple(originIP, hop1IP, repO, repH, GPSO, GPSH, batteryO, batteryH);
                 
             // Print elements
-            NS_LOG_DEBUG("Tuple Missing in my node received from parent: " << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH);
+            //NS_LOG_DEBUG("Tuple Missing in my node received from parent: " << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH);
         }
         NS_LOG_DEBUG("End______________________________________");
         }
-         r_Table.RunDijkstra(m_mainAddress);
+        
+        //r_Table.RunDijkstra(m_mainAddress);
+
+      SaharaHeader invAck;
+      invAck.SetMessageType(sahara::SaharaHeader::SEND_MISSING_P2C_ACK);
+      invAck.SetOriginIP(m_mainAddress);
+
+      Ptr<Packet> packet = Create<Packet>();
+      packet->AddHeader(invAck);
+      
+      
+      Simulator::Schedule(MilliSeconds(2*m_intNodeID), &SaharaRouting:: SendPacketToDest, this, packet, m_parentIP);
 
       // now do the same with children
-      Simulator::Schedule(MilliSeconds(10 + 2*m_intNodeID), &SaharaRouting::InverseSetRec, this);
+      for(const auto& t : m_listSetRecDone){
+        m_listSetRecDone[t.first] = false;
+      }
+       ns3::Ptr<ns3::UniformRandomVariable> rng = ns3::CreateObject<ns3::UniformRandomVariable>();
+    rng->SetAttribute("Min", ns3::DoubleValue(10.0));
+    rng->SetAttribute("Max", ns3::DoubleValue(100.0));
+    double randomNumber = rng->GetValue();
+      Simulator::Schedule(MilliSeconds(randomNumber), &SaharaRouting::InverseSetRec, this);
     
     }
 
     void
     SaharaRouting::SendPacketToDest(Ptr<Packet> packet, Ipv4Address dest){
+          NS_LOG_DEBUG(m_intNodeID << "[SendPacketToDest] To -> " << dest);
+          
+          // packet = m_shCrypto.EncryptHeader(packet);
           for (std::map<Ptr<Socket> , Ipv4InterfaceAddress>::const_iterator i = m_socketAddressesSET.begin (); i != m_socketAddressesSET.end (); i++)
           {
-            Ipv4Address broadcastAddr = i->second.GetLocal ().GetSubnetDirectedBroadcast (i->second.GetMask ());
-            i->first->SendTo (packet, 0, InetSocketAddress (dest, m_saharaPort));
-          }
-    } 
+            if(i->first->SendTo (packet, 0, InetSocketAddress (dest, m_saharaPort)) != -1) return;
 
+            else{
+              NS_LOG_DEBUG(m_intNodeID << ", Failed to send message, error -> " << i->first->GetErrno());
+              if(m_auditTimeoutAckInverseSR.IsRunning()) m_auditTimeoutAckInverseSR.Cancel();
+            }
+            
+          }
+    }
+
+    void
+    SaharaRouting::ProcessInverseAck(SaharaHeader sh){
+    
+      NS_LOG_DEBUG(m_intNodeID << "[ProcessInverseAck], Ack received from -> " << sh.GetOriginIP());
+      m_listSetRecDone[sh.GetOriginIP()] = true;
+
+    }
 
 
     void 
     SaharaRouting::PrintAllInfo(){
       
       NS_LOG_DEBUG("___________________________________________________________");
-      NS_LOG_DEBUG("Priting all infos about current node");
+      NS_LOG_DEBUG("Priting all infos about current node: " << m_intNodeID);
+
+      NS_LOG_DEBUG("Packet processed by node to do SR -> " << m_packets_processed);
+      NS_LOG_DEBUG("Total byte processed by node to do SR -> " << m_tot_byte_processed);
+
+      /*
+       std::vector<bool> myBF = r_Table.GetBloomFilter();
+       std::string toPrintToSee;
+        for (int i = 0; i < myBF.size(); ++i) {
+            toPrintToSee += std::to_string(myBF[i]);
+        }
+        NS_LOG_DEBUG(m_intNodeID << ": my bloom filter -> " << toPrintToSee);
+
+
 
       NS_LOG_DEBUG(m_intNodeID << ", has parent -> " << m_parentIP);
 
       // this is only to print
         std::string toPrintTosee;
-        for (int i = 0; i < parentBF.size(); ++i) {
-            toPrintTosee += std::to_string(parentBF[i]);
+        for (int i = 0; i < m_parentBF.size(); ++i) {
+            toPrintTosee += std::to_string(m_parentBF[i]);
         }
         NS_LOG_DEBUG(m_intNodeID << ": bloom filter of the parent -> " << toPrintTosee);
+        */
+
         NS_LOG_DEBUG(m_intNodeID << " -> Children: ");
+        
 
         for(const auto& t : m_listSetRecDone){
           NS_LOG_DEBUG(t.first << ", checked? " << t.second);
@@ -1039,11 +1252,121 @@
     }
 
     void
+    SaharaRouting::PrintStatistics(){
+
+      NS_LOG_DEBUG("Node " << m_intNodeID);
+
+      NS_LOG_DEBUG("#P = " << m_packets_processed);
+      NS_LOG_DEBUG("#B = " << m_tot_byte_processed);
+
+
+    }
+
+    void
     SaharaRouting::PrintRoutingTable(){
       r_Table.PrintAll();
     }
 
+  void
+  SaharaRouting::SendDataNew(){
 
+        NS_LOG_DEBUG(m_intNodeID << "-> [SEND_DATA_NEW]");
+
+       // send my data in broadcast 
+
+        
+        uint16_t def = 22;
+
+        SaharaHeader shAck;
+        shAck.SetMessageType(sahara::SaharaHeader::SR_HELLO);
+        shAck.SetOriginIP(m_mainAddress);
+        shAck.SetParentIP(m_parentIP);
+        shAck.SetReputation_O(m_intNodeID);
+        shAck.SetGPS_O(def);
+        shAck.SetBattery_O(def);
+
+        //SaharaHeader(m_mainAddress, true);
+        Ptr<Packet> ackPacket = Create<Packet>();
+        ackPacket->AddHeader(shAck);
+        
+        //NS_LOG_DEBUG ("[SendHello] Sending Hello " << m_mainAddress << ", " << Ipv4Address("0.0.0.0") << ", " << m_intNodeID << ", " << init << ", " << init);    
+
+        // start timer to see if I have children
+        m_auditTimeoutAckSRNEW.Schedule(MilliSeconds(m_ackTimeSlot + 2*static_cast<double>(m_intNodeID)));
+        
+        
+        Simulator::Schedule(MilliSeconds(2*m_intNodeID), &SaharaRouting::BroadcastPacket, this, ackPacket);  
+        
+        
+  }
+
+  void
+  SaharaRouting::NoChildrenNew(){
+    NS_LOG_DEBUG(m_intNodeID << "-> No Children");
+
+    NS_LOG_DEBUG("Updatig routing table");
+    r_Table.UpdateRoutingTable();
+    NoChildren();
+  }
+
+  // every time a new round of SR is perfomed
+  void
+  SaharaRouting::ResetVariablesUpdate(){
+    m_parentIP = Ipv4Address("0.0.0.0");
+    m_parentBF.clear();
+    m_listBFChildren.clear();
+    m_listSetRecDone.clear();
+  }
+
+
+  
+  void
+  SaharaRouting::PrintNumberOfpackets(){
+    
+    NS_LOG_DEBUG( m_intNodeID << ", Hello Packets -> " << m_packets_processed);
+  }
+
+  bool
+  SaharaRouting::GetIfRunning(){
+    return m_run;
+  }
+
+  void SaharaRouting::ActiveDropping(){
+    m_nodeDeletePackets = true;
+  }
+
+
+  /* How to manage updates in an efficient way ? That is a good challenge
+  One idea:
+  Since every node knows the complete routing table, it can check which is the in charge to start set reconcilaition update. 
+  If a node starts it and it is not in charge, it can be penalised by neighbors... (security part). 
+
+  The idea is that each node has the hash of each routing tuple in the routing table. Beacause every node has previously 
+  calculated it in order to create own bloom filter -> so, it doesn't add computational cost
+
+  1) The node in charge starts set_rec_update by sending in broadcast a HELLO_SR_ROOT. 
+
+  2) The nodes that receives it will calculate the hash of the tuple.
+    - if the hash is already present in the routing table -> flag the tuple of the routing table like "checked"
+    - if the hash is not present, it means that parent is not the same as the previus, so parentIP has changed,
+      so, store the new tuple and the new hash in the routing table and flag with "checked"
+
+  3) The children now will send in broadcast and HELLO_SR specifying its parent
+    - If the receiver is the parent it will store the node as children. 
+      -- If the hash of the tuple is already present in the routing table -> flag the tuple as "checked"
+      -- If the hash of the tuple is not present -> and the new tuple and flag it as "checked"
+    - If the receiver has already the parent:
+      -- If the hash of the tuple is already present in the routing table -> flag the tuple as "checked"
+      -- If the hash of the tuple is not present -> and the new tuple and flag it as "checked"
+    - if the reciver has not parent yet it will add parent and check like before. 
+  
+4) when a node doesn't receive an ack before starting set reconciliation with the parent a UpdateRoutingTable is called
+  where there will be deleted the tuples not flagged with "checked".
+  Now we have the updated routing table, if the network doesn't change bloom filters will be the same and no data to transmi
+  the tuples is sent so ---->>> total size of bytes it reduced up xxx%? to evaluate.
+  Worst case scenario is when all the topolofy has changed
+     
+  // timeline: A node (highest rep, lowest ip) send in broadcas */
 
     
   } // namespace ns3

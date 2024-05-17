@@ -38,12 +38,17 @@ class SaharaHeader : public Header
   public:
     enum MessageType
     {
-        HELLO_MESSAGE = 1,
-        SET_BF = 2,
-        SET_ACK = 3,
-        SEND_MISSING_C2P = 4,
-        SEND_MISSING_P2C = 5
-        
+        HELLO_MESSAGE = 1, // flooding 
+        // set reconciliation: 
+        SEND_MISSING_C2P = 2, // sending missing tuples from child to parent
+        SEND_MISSING_P2C = 3, // send missing tuples from parent to child
+        SR_HELLO = 4, // set reconciliation hello messages 
+        ROOT_SR_HELLO = 5, // root hello message (first messahe from root that starts set reconciliation)
+        SEND_MISSING_P2C_ACK = 6, // child confirms with an ack to have received missing tuples from parent 
+        ASK_BF = 7, // child asks to parent his bloom filter 
+        SEND_BF = 8, // parent sends its bloom filter to child
+        ENCRYPTED = 9
+
     };
 
     /*
@@ -84,6 +89,10 @@ class SaharaHeader : public Header
     void SetGPS_H(uint16_t gps);
     void SetBattery_H(uint16_t bat);
 
+    // this is for message encryption
+    void SetEncryptedPacketSize(u_int32_t encrSize);
+
+
     // for set reconciliation
     void SetParentIP(Ipv4Address parentIP);
     void SetChildIP(Ipv4Address childIP);
@@ -121,6 +130,9 @@ class SaharaHeader : public Header
     std::vector<bool> m_bloomFilter;
     u_int16_t sizeBF;
     std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> m_missing_tuples;
+
+    // encryption
+    uint32_t m_encryptedSize = 0;
     
 };
 

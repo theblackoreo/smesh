@@ -16,8 +16,20 @@
 #include "saharaMobility.h"
 #include "ns3/saharaRouting.h"
 #include "ns3/olsr-module.h"
+#include <map>
+#include "ns3/timer.h"
+
 
 using namespace ns3;
+
+double msgSent;
+double msgReceived;
+std::map<uint32_t, EventId> packetTimers;
+int packetLost = 0;
+int totPackets = 0;
+std::map<uint32_t, double> mapMsgSent;
+
+
 
 void UpdateVelocity(Ptr<SaharaMobility> m, double radius, const Vector& center, double omega) {
  
@@ -64,6 +76,11 @@ void PrintInfo (Ptr<SaharaMobility> m)
 
 }
 
+void PrintPacketLost(){
+  NS_LOG_UNCOND("Tot packets: " << totPackets);
+  NS_LOG_UNCOND("Packet lost: " << packetLost);
+}
+
 void setPos(Ptr<SaharaMobility> m00, Ptr<SaharaMobility> m11, Vector v0, Vector v1){
     m00->SetPosition (v0);
     m11->SetPosition (v1);
@@ -86,34 +103,92 @@ void ReceivePacket(Ptr<Socket> socket) {
     Ipv4Address receiverIp = socket->GetNode()->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
 
     while ((packet = socket->RecvFrom (from))) {
+
+        msgReceived = Simulator::Now().GetSeconds();
+       
+        double tot; // =  packet->GetSize() / (msgReceived - msgSent);
+        tot = (packet->GetSize()*8 / (msgReceived - mapMsgSent.at(packet->GetUid())))/ (100000);
+
+       
+        auto it = packetTimers.find(packet->GetUid());
+      if (it != packetTimers.end())
+      {
+          // Cancel the timer associated with the packet
+           Simulator::Cancel(it->second);
+          
+
+          // Remove the timer from the map
+          packetTimers.erase(it);
+      }
+
+       //NS_LOG_UNCOND("Received ID = " << packet->GetUid());
+        NS_LOG_UNCOND("Throughput Mbs: " << tot);
+
+
         Ipv4Address senderIp = InetSocketAddress::ConvertFrom(from).GetIpv4();
-        NS_LOG_UNCOND(receiverIp << ": Received a packet from " << senderIp);
-        PrintPacketContent(packet);
+        //NS_LOG_UNCOND(receiverIp << ": Received a packet from " << senderIp);
+        //PrintPacketContent(packet);
         // Handle the received packet as needed
     }
 }
 
-void sendMessage(Ptr<Socket> socket, uint16_t port){
-    std::string msg = "Hello World!";
-         NS_LOG_UNCOND("SENT:" << msg);
-      Ptr<Packet> packet = Create<Packet>((uint8_t*) msg.c_str(), msg.length() + 1);
+void TimerCallback(uint32_t packetId, Ptr<Socket> socket, Ptr<Packet> pkt, uint16_t port){
 
+ packetLost = packetLost +1;
+
+  if (socket->SendTo(pkt, 0, InetSocketAddress(Ipv4Address("10.1.1.24"), port)) != -1) {
+      msgSent = Simulator::Now().GetSeconds();
+      
+
+      totPackets = totPackets +1;
+      
+      EventId timerId;
+      uint32_t packetId = pkt->GetUid();
+      timerId = Simulator::Schedule(MilliSeconds(100), &TimerCallback, packetId, socket, pkt, port);
+      packetTimers[pkt->GetUid()] = timerId;
+
+      } else {
+          std::cout << "error";
+      }
+
+}
+
+void sendMessage(Ptr<Socket> socket, uint16_t port){
+    //std::string msg = "Hello World!";
+      //NS_LOG_UNCOND("SENT:" << msg);
+
+      Ptr<Packet> packet = Create<Packet>(1024);
+      //NS_LOG_UNCOND("Sent ID = " << packet->GetUid());
+     
       // Send the packet in broadcast
-      if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address("10.1.1.3"), port)) != -1) {
+      if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address("10.1.1.24"), port)) != -1) {
+        msgSent = Simulator::Now().GetSeconds();
+        mapMsgSent[packet->GetUid()] = msgSent;
+
+        totPackets = totPackets +1;
+      
+        EventId timerId;
+        uint32_t packetId = packet->GetUid();
+
+        timerId = Simulator::Schedule(MilliSeconds(100), &TimerCallback, packetId, socket, packet, port);
+        packetTimers[packet->GetUid()] = timerId;
+
       } else {
           std::cout << "error";
       }
 }
+
+
 
 int main (int argc, char *argv[])
 {
   // Enable logging
   //LogComponentEnable("UdpSocketImpl", LOG_LEVEL_ALL);
   
-  LogComponentEnable("saharaRoutingProtocol", LOG_LEVEL_ALL);
-  // LogComponentEnable("routingTable", LOG_LEVEL_ALL);
-   LogComponentEnable("OlsrRoutingProtocol", LOG_LEVEL_ALL);
-   //LogComponentEnable("saharaCrypto", LOG_LEVEL_ALL);
+  //LogComponentEnable("saharaRoutingProtocol", LOG_LEVEL_ALL);
+  //LogComponentEnable("routingTable", LOG_LEVEL_ALL);
+  //LogComponentEnable("OlsrRoutingProtocol", LOG_LEVEL_ALL);
+  //LogComponentEnable("saharaCrypto", LOG_LEVEL_ALL);
 
   //LogComponentEnable("saharaHeader", LOG_LEVEL_ALL);
   //LogComponentEnable("saharaQueue", LOG_LEVEL_ALL);
@@ -124,7 +199,7 @@ int main (int argc, char *argv[])
 
   // Create nodes
   NodeContainer nodes;
-  nodes.Create(30);
+  nodes.Create(24);
   
   //nodes.Get(1)->setm_nodeTestID(543);
   //uint32_t nodeID = nodes.Get(1)->getm_nodeTestID();
@@ -142,15 +217,12 @@ int main (int argc, char *argv[])
 
   WifiMacHelper mac;
   mac.SetType ("ns3::AdhocWifiMac");
-  
-
 
   YansWifiPhyHelper wifiPhy;
   YansWifiChannelHelper wifiChannel;
-  wifiPhy.Set ("TxPowerStart", DoubleValue(0.5));
-  wifiPhy.Set ("TxPowerEnd", DoubleValue(0.5));
+  wifiPhy.Set ("TxPowerStart", DoubleValue(0.2));
+  wifiPhy.Set ("TxPowerEnd", DoubleValue(0.2));
   wifiPhy.Set ("TxPowerLevels", UintegerValue(1));
-  
 
   wifiChannel.SetPropagationDelay("ns3::ConstantSpeedPropagationDelayModel");
   wifiChannel.AddPropagationLoss("ns3::FriisPropagationLossModel");
@@ -205,27 +277,29 @@ int main (int argc, char *argv[])
 
   // Mobility of the nodes
   
-  /*
+  
   MobilityHelper mobility;
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
                                   "MinX", DoubleValue (0.0),
                                   "MinY", DoubleValue (0.0),
                                   "DeltaX", DoubleValue (30.0),
                                   "DeltaY", DoubleValue (30.0),
-                                  "GridWidth", UintegerValue (5),
+                                  "GridWidth", UintegerValue (6),
                                   "LayoutType", StringValue ("RowFirst"));
 
   mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
 
 
   mobility.Install (nodes);
-    */
+    
   
 
  //Sahara routing
   SaharaHelper sahara;
   // Internet stack
   InternetStackHelper internet;
+
+  
 
   OlsrHelper olsr;
   olsr.Set("HelloInterval", TimeValue(Seconds(11.0)));
@@ -234,11 +308,10 @@ int main (int argc, char *argv[])
   olsr.Set("HnaInterval", TimeValue(Seconds(11.0)));
 
   
-
-  internet.SetRoutingHelper(sahara);
+  internet.SetRoutingHelper(olsr);
   internet.Install(nodes);
   
-    
+    /*
   MobilityHelper mobility;
   mobility.SetMobilityModel ("ns3::SaharaMobility");
   mobility.Install (nodes); 
@@ -294,10 +367,7 @@ int main (int argc, char *argv[])
 
         m->SetVelocityAndAcceleration(initialVelocity, Vector(0, 0, 0));
         double interval = 0.1;  // Interval in seconds
-        for (double time = 10; time < 200; time += interval) {
-            Simulator::Schedule(Seconds(time), &UpdateVelocity,m, radius, center, omega);
-        }
-        for (double time = 20; time < 300; time += interval) {
+        for (double time = 0; time < 1000; time += interval) {
             Simulator::Schedule(Seconds(time), &UpdateVelocity,m, radius, center, omega);
         }
         
@@ -305,7 +375,7 @@ int main (int argc, char *argv[])
 
     file.close();
 
-  
+  */
     
   // suggestion from Pecorella
    //Ipv4ListRoutingHelper listRH;
@@ -314,7 +384,6 @@ int main (int argc, char *argv[])
   // Ipv4StaticRoutingHelper staticRh;
   // listRH.Add(staticRh, 5);
 
-  
 
 
   // assign IP addresses and mount a static routing table (bacuse we need to change it)
@@ -324,7 +393,7 @@ int main (int argc, char *argv[])
 
   
   // RECEIVERs socket
-  for(uint32_t i = 0; i < 10; i++){
+  for(uint32_t i = 0; i < 24; i++){
     Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (i), UdpSocketFactory::GetTypeId ());
     recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 12345)); // Listen on port 9
     recvSocket->SetRecvCallback (MakeCallback (&ReceivePacket));
@@ -336,7 +405,14 @@ int main (int argc, char *argv[])
     Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (0), TypeId::LookupByName ("ns3::UdpSocketFactory"));
     //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
     // socket_sender->SetAllowBroadcast(true);
-    Simulator::Schedule(Seconds(100.0), &sendMessage, socket_sender, port);
+    int i = 0;
+    for(i = 0; i < 1000; i++){
+      Simulator::Schedule(MilliSeconds(10000 + 10*i), &sendMessage, socket_sender, port);
+    }
+
+    //Simulator::Schedule(MilliSeconds(20001), &PrintPacketLost);
+
+
     //}
  
 

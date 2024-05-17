@@ -16,6 +16,8 @@
 #include <string>
 #include <limits>
 #include <fstream>
+#include "saharaBlock.h"
+
 
 
 namespace ns3{
@@ -52,16 +54,22 @@ public:
 
     void SetFile(std::string fileName);
     void UpdateFileHistory();
+    void SetAllTupleFalse();
+    void UpdateRoutingTable();
+    std::vector<bool> GetBloomFilter();
+   
 
 private:
-	std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> m_tuples;
+    using TupleType = std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>;
+	std::vector<TupleType> m_tuples;
 
     std::map<Ipv4Address, uint16_t> m_distance;
     std::map<Ipv4Address, bool> m_visited;
     std::map<Ipv4Address, Ipv4Address> m_previous;
     std::map<Ipv4Address, std::vector<Ipv4Address>> m_routes;
-    int m_num_hash_functions = 1;
+    int m_num_hash_functions = 3;
     bool m_finalRound = false;
+
 
     // create crypto++ hash object
     CryptoPP::SHA256 m_hash; 
@@ -70,7 +78,22 @@ private:
 	
     // store file
     std::ofstream m_outputFile;
-    
+
+    // to manage set reconciliation map: hash is the key and then tuple and bool. bool is the flag
+    using MapType = std::unordered_map<std::string, std::pair<std::shared_ptr<TupleType>, bool>>;
+
+    MapType m_hashMap;
+    u_int32_t m_nTuplesWorstCase = 450;
+    double m_probabilityFP = 0.1;
+    std::vector<bool> m_bloomFilter;
+    u_int32_t m_optimalNumberBits;
+    Blockchain m_blockchain;
+   
+
+private:
+ // updates
+    void HashTuple(TupleType& tup);
+
 
 };
 }

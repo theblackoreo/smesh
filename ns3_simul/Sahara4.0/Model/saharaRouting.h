@@ -19,6 +19,10 @@
 #include "saharaSync.h"
 #include "saharaQueue.h"
 
+#include "saharaCrypto.h"
+
+#include "saharaMobility.h"
+
 #include <map>
 #include <vector>
 #include <iomanip>
@@ -78,7 +82,14 @@ class SaharaRouting : public Ipv4RoutingProtocol
                            Time::Unit unit = Time::S) const override;
 
     void StartSetReconciliation();
+
     
+    void PrintNumberOfpackets();
+
+    // mob
+    bool GetIfRunning();
+
+
     
  
   private:
@@ -99,6 +110,9 @@ class SaharaRouting : public Ipv4RoutingProtocol
     RoutingTable r_Table;
     uint16_t m_saharaPort;
     uint16_t m_saharaPortSET;
+    uint16_t m_packets_processed;
+    uint32_t m_tot_byte_processed;
+    CryptoModule m_shCrypto;
 
 
     // managing timer for running node routing functions
@@ -106,37 +120,53 @@ class SaharaRouting : public Ipv4RoutingProtocol
     Timer m_auditDijkstra; // disjkstra
     Timer m_auditLookUpPacketQueue; // queue
     Timer m_auditTimeoutAckSR; // timeout ack from children during set reconciliation
+    Timer m_auditTimeoutAckInverseSR;
+    Timer m_SR; // flooding
 
+
+    // modify this value to active flooding or set reconcilation, NOT BOTH at the same time
+    bool m_flooding_ON = false;
+    bool m_sr_ON = true;
 
     // millisecond to start
-    uint16_t m_timeToStartFlooding = 1000;
-    uint16_t m_timeToStartDijskra = 10000;
-    uint16_t m_timeToStartPacketQueue = 25000;
+    uint16_t m_timeToStartFlooding = 2000;
+    uint16_t m_timeToStartDijskra = 5000;
+    uint16_t m_timeToStartPacketQueue = 6000;
 
     // millisecond to set up frequency
-    uint16_t m_frequencyFlooding = 30000;
-    uint16_t m_frequencyDijskra = 38000;
-    uint16_t m_frequencyLookUpPacketQueue = 2000;
+    uint16_t m_frequencyFlooding = 100000;
+    uint16_t m_frequencyDijskra = 20000;
+    uint16_t m_frequencyLookUpPacketQueue = 20000;
+    uint16_t m_startSR = 2000;
+    uint16_t m_frequencySR = 25000;
 
     // ack reception timeslot
-    uint16_t m_ackTimeSlot = 2000;
+    uint16_t m_ackTimeSlot = 800;
 
     uint32_t m_currentSequenceNumber;
     PacketQueue m_queue;
 
-    // to manage set reconciliation
-    SaharaSync m_sync;
-    std::vector<bool> parentBF;
+   
+
+    // mobility is to stop movements while set reconciliation is performed
+    bool m_run;
+
+    // set reconciliation variables
+    Ipv4Address m_parentIP;
+    std::vector<bool> m_parentBF;
     std::map<Ipv4Address, std::vector<bool>> m_listBFChildren;
     std::map<Ipv4Address, bool> m_listSetRecDone;
+    bool m_SRCompleted = false;
 
 
-    Ipv4Address m_parentIP = Ipv4Address("0.0.0.0");
+    // to test a new approach
+    Timer m_auditTimeoutAckSRNEW; // timeout ack from children during set reconciliation
 
+    // to test malicius node that drops packets
+    bool m_nodeDeletePackets = false;
+    uint16_t m_IDcompromisedNode = 3;
     
     
-    
-
   private:
     void SendHello();
 
@@ -176,9 +206,25 @@ class SaharaRouting : public Ipv4RoutingProtocol
     // to test what nodes contains after some times
     void PrintAllInfo();
     void PrintRoutingTable();
-   
 
     
+    // BFS like and set reconciliation -> new approach
+    void StartTopologyBuilding();
+    void ProcessRootHello(SaharaHeader sh);
+    void ProcessSRHello(SaharaHeader sh);
+    void SendDataNew();
+    void NoChildrenNew();
+    void ProcessInverseAck(SaharaHeader sh);
+    void AskToParentBF();
+    void ReceivedFromParentBF(SaharaHeader sh);
+    void SendToChildBF(SaharaHeader sh);
+    void ResetVariablesUpdate();
+
+  // statistics
+    void PrintStatistics();
+    
+  // test attack
+    void ActiveDropping();
 };
 
 } // namespace sahara
