@@ -46,6 +46,10 @@ cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaBlock.cc /home/parall
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaCrypto.h /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaCrypto.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 
+
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaSecurity.h /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaSecurity.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
+
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/nodeCompromizedTest.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/nodeCompromizedTest.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
 

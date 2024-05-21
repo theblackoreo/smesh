@@ -19,6 +19,12 @@ namespace ns3
          m_outputFile.close();
     }
 
+    RoutingTable& RoutingTable::operator=(const RoutingTable& other) {
+   
+
+    return *this;
+}
+
 
     // init file routing tables history
     void

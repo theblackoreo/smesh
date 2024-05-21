@@ -16,6 +16,13 @@
 #include "saharaMobility.h"
 #include "ns3/saharaRouting.h"
 #include "ns3/olsr-module.h"
+#include "ns3/point-to-point-module.h"
+#include "ns3/ipv4-header.h"
+#include "ns3/packet.h"
+#include "ns3/buffer.h"
+#include "ns3/udp-header.h"
+
+
 
 using namespace ns3;
 
@@ -105,6 +112,29 @@ void sendMessage(Ptr<Socket> socket, uint16_t port){
       }
 }
 
+bool YourPromiscuousCallback(ns3::Ptr<ns3::NetDevice> device, ns3::Ptr<const ns3::Packet> packet, uint16_t protocol, const ns3::Address &source, const ns3::Address &destination, ns3::NetDevice::PacketType packetType)
+{
+    
+    ns3::Ptr<ns3::Packet> packetCopy = packet->Copy();
+
+    ns3::Ipv4Header ipv4Header;
+    packetCopy->RemoveHeader(ipv4Header);
+
+    ns3::Ptr<ns3::Node> node = device->GetNode();
+    ns3::Ptr<ns3::Ipv4> ipv4 = node->GetObject<ns3::Ipv4>();
+    ns3::Ipv4Address ipv4Addr = ipv4->GetAddress(ipv4->GetInterfaceForDevice(device), 0).GetLocal();
+    
+    ns3::UdpHeader udpHeader;
+    packetCopy->PeekHeader(udpHeader);
+    uint16_t port = udpHeader.GetDestinationPort();
+    
+
+    NS_LOG_UNCOND("Promiscuous packet received: " << ipv4Addr << " source: " << source << " port: " << port << " from: " << ipv4Header.GetSource() << " dest: " << ipv4Header.GetDestination() << "next hop: " << destination);
+    return true;  // Indicate the packet has been processed
+}
+
+
+
 int main (int argc, char *argv[])
 {
   // Enable logging
@@ -113,6 +143,7 @@ int main (int argc, char *argv[])
   LogComponentEnable("saharaRoutingProtocol", LOG_LEVEL_ALL);
   // LogComponentEnable("routingTable", LOG_LEVEL_ALL);
    LogComponentEnable("OlsrRoutingProtocol", LOG_LEVEL_ALL);
+    LogComponentEnable("saharaSecurity", LOG_LEVEL_ALL);
    //LogComponentEnable("saharaCrypto", LOG_LEVEL_ALL);
 
   //LogComponentEnable("saharaHeader", LOG_LEVEL_ALL);
@@ -158,6 +189,55 @@ int main (int argc, char *argv[])
   wifiPhy.SetChannel(wifiChannel.Create());
   
   NetDeviceContainer devices = wifi.Install(wifiPhy, mac, nodes);
+
+
+// write mac addresses into files and public keys
+    std::ofstream outFile;
+    outFile.open("macAddresses.txt");
+
+for (uint32_t i = 0; i < devices.GetN(); ++i) {
+    Ptr<NetDevice> netDevice = devices.Get(i);
+    Ptr<Node> node = netDevice->GetNode();
+
+    Ptr<WifiNetDevice> wifiNetDevice = DynamicCast<WifiNetDevice>(netDevice);
+
+    if (wifiNetDevice) {
+         if (outFile.is_open())
+    {
+        
+        Mac48Address macAddr = wifiNetDevice->GetMac()->GetAddress();
+
+        outFile << node->GetId() + 1 << " " << macAddr << std::endl;
+
+    }
+    else
+    {
+        std::cerr << "Unable to open file for writing" << std::endl;
+    }
+
+        
+    }
+}
+
+  // Close the file stream
+    outFile.close();
+
+
+
+/*
+  // Iterate over each NetDevice and enable promiscuous mode
+for (uint32_t i = 0; i < devices.GetN(); ++i)
+{
+    ns3::Ptr<ns3::WifiNetDevice> wifiDevice = ns3::DynamicCast<ns3::WifiNetDevice>(devices.Get(i));
+    if (wifiDevice)
+    {
+       // wifiDevice->GetMac()->SetPromisc();
+        
+        wifiDevice->SetPromiscReceiveCallback(MakeCallback(&YourPromiscuousCallback));
+    }
+}
+*/
+
 
     /*
     MobilityHelper mobility;
@@ -324,7 +404,7 @@ int main (int argc, char *argv[])
 
   
   // RECEIVERs socket
-  for(uint32_t i = 0; i < 10; i++){
+  for(uint32_t i = 0; i < 30; i++){
     Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (i), UdpSocketFactory::GetTypeId ());
     recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 12345)); // Listen on port 9
     recvSocket->SetRecvCallback (MakeCallback (&ReceivePacket));
@@ -336,7 +416,7 @@ int main (int argc, char *argv[])
     Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (0), TypeId::LookupByName ("ns3::UdpSocketFactory"));
     //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
     // socket_sender->SetAllowBroadcast(true);
-    Simulator::Schedule(Seconds(100.0), &sendMessage, socket_sender, port);
+    Simulator::Schedule(Seconds(10.0), &sendMessage, socket_sender, port);
     //}
  
 

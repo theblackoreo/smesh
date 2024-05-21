@@ -18,6 +18,9 @@
 #include "ns3/network-module.h"
 #include "saharaSync.h"
 #include "saharaQueue.h"
+  #include "ns3/wifi-net-device.h"
+  #include "ns3/net-device-container.h"
+#include "saharaSecurity.h"
 
 #include "saharaCrypto.h"
 
@@ -89,8 +92,6 @@ class SaharaRouting : public Ipv4RoutingProtocol
     // mob
     bool GetIfRunning();
 
-
-    
  
   private:
     void NotifyInterfaceUp(uint32_t interface) override;
@@ -122,6 +123,7 @@ class SaharaRouting : public Ipv4RoutingProtocol
     Timer m_auditTimeoutAckSR; // timeout ack from children during set reconciliation
     Timer m_auditTimeoutAckInverseSR;
     Timer m_SR; // flooding
+    Timer m_ackTimeoutAskToParentBF;
 
 
     // modify this value to active flooding or set reconcilation, NOT BOTH at the same time
@@ -146,6 +148,10 @@ class SaharaRouting : public Ipv4RoutingProtocol
     uint32_t m_currentSequenceNumber;
     PacketQueue m_queue;
 
+    // default node info when started
+    uint16_t m_rep = 255;
+    uint16_t m_gps = 10;
+    uint16_t m_bat = 100;
    
 
     // mobility is to stop movements while set reconciliation is performed
@@ -165,6 +171,8 @@ class SaharaRouting : public Ipv4RoutingProtocol
     // to test malicius node that drops packets
     bool m_nodeDeletePackets = false;
     uint16_t m_IDcompromisedNode = 3;
+
+    SaharaSecurity m_ss = SaharaSecurity(r_Table);
     
     
   private:
@@ -225,6 +233,9 @@ class SaharaRouting : public Ipv4RoutingProtocol
     
   // test attack
     void ActiveDropping();
+
+
+
 };
 
 } // namespace sahara

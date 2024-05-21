@@ -28,6 +28,9 @@
   #include <string>
   #include <limits>
   #include <fstream>
+  #include "saharaSecurity.h"
+
+
 
 
 
@@ -249,6 +252,7 @@
           NS_LOG_DEBUG("error ip");
       }
 
+
       for (uint32_t i = 0 ; i < m_ipv4->GetNInterfaces () ; i++)
       {
         Ipv4Address ipAddress = m_ipv4->GetAddress (i, 0).GetLocal ();
@@ -285,10 +289,31 @@
         Ptr<NetDevice> netDevice = m_ipv4->GetNetDevice (i);
         recvSocket->BindToNetDevice (netDevice);
         m_socketAddressesSET[socket] = m_ipv4->GetAddress (i, 0);
+
       }
 
       m_mainAddress = m_ipv4->GetAddress (1, 0).GetLocal ();
 
+
+
+    
+     
+      for (uint32_t i = 0 ; i < m_ipv4->GetNInterfaces () ; i++)
+      {
+        Ptr<NetDevice> netDevice = m_ipv4->GetNetDevice (i);
+        ns3::Ptr<ns3::WifiNetDevice> wifiDevice = ns3::DynamicCast<ns3::WifiNetDevice>(netDevice);
+         if (wifiDevice)
+    {
+       // wifiDevice->GetMac()->SetPromisc();
+        
+        wifiDevice->SetPromiscReceiveCallback(MakeCallback(&SaharaSecurity::PromiscuousCallback, &m_ss));
+    }
+      }
+      
+     
+     
+     
+    
 
       // Configure timers
       m_auditFloodingTimer.SetFunction (&SaharaRouting::AuditHellos, this);
@@ -299,6 +324,7 @@
       m_auditTimeoutAckInverseSR.SetFunction(&SaharaRouting::InverseSetRec, this);
       m_SR.SetFunction(&SaharaRouting::StartTopologyBuilding, this);
       
+      m_ackTimeoutAskToParentBF.SetFunction(&SaharaRouting::AskToParentBF, this);
 
       
 
@@ -469,6 +495,9 @@
         if(randomNumber < 80){
           return false;
         }
+      }
+      if(Simulator::Now().GetSeconds() > 8 && m_intNodeID == 23){
+        return false;
       }
 
       //NS_LOG_DEBUG ("[RouteInput] Called");
@@ -810,16 +839,15 @@
         m_parentIP = m_mainAddress;
 
         Ptr<Packet> packet = Create<Packet> ();
-       
-        uint16_t init = 0;
-        uint16_t def = 22;
+      
+
         SaharaHeader sh;
         
         sh.SetMessageType(sahara::SaharaHeader::ROOT_SR_HELLO);
         sh.SetOriginIP(m_mainAddress);
-        sh.SetReputation_O(m_intNodeID);
-        sh.SetGPS_O(def);
-        sh.SetBattery_O(def);
+        sh.SetReputation_O(m_rep);
+        sh.SetGPS_O(m_gps);
+        sh.SetBattery_O(m_bat);
 
         //NS_LOG_DEBUG ("[SendHello] Sending Hello " << m_mainAddress << ", " << Ipv4Address("0.0.0.0") << ", " << m_intNodeID << ", " << init << ", " << init);    
 
@@ -854,17 +882,14 @@
     // set node's parent
     m_parentIP = originIP;
 
-    // send my data in broadcast 
-    uint16_t init = 0;
-    uint16_t def = 22;
 
     SaharaHeader shAck;
     shAck.SetMessageType(sahara::SaharaHeader::SR_HELLO);
     shAck.SetOriginIP(m_mainAddress);
     shAck.SetParentIP(m_parentIP);
-    shAck.SetReputation_O(m_intNodeID);
-    shAck.SetGPS_O(def);
-    shAck.SetBattery_O(def);
+    shAck.SetReputation_O(m_rep);
+    shAck.SetGPS_O(m_gps);
+    shAck.SetBattery_O(m_bat);
 
     //SaharaHeader(m_mainAddress, true);
     Ptr<Packet> ackPacket = Create<Packet>();
@@ -873,7 +898,7 @@
     m_auditTimeoutAckSRNEW.Schedule(MilliSeconds(m_ackTimeSlot + 10*static_cast<double>(m_intNodeID)));
     Simulator::Schedule(MilliSeconds(2*m_intNodeID), &SaharaRouting::BroadcastPacket, this, ackPacket);  
     
-    r_Table.AddTuple(originIP, m_mainAddress, reputation_O,m_intNodeID, GPS_O, 22, battery_O, 22);
+    r_Table.AddTuple(originIP, m_mainAddress, reputation_O, m_rep, GPS_O, m_gps, battery_O, m_bat);
 
   }
 
@@ -894,7 +919,7 @@
         m_listSetRecDone[sh.GetOriginIP()] = false;
 
         // add a tuple containing my info and the list of sender nodes -> it creates a pair
-        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_intNodeID, sh.GetReputation_O(), 22, sh.GetGPS_O(), 22, sh.GetBattery_O());
+        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_rep, sh.GetReputation_O(), m_gps, sh.GetGPS_O(), m_bat, sh.GetBattery_O());
        
      }
      // in this case I've not the parent, so it means the sender is my parent
@@ -906,7 +931,7 @@
         m_parentIP = sh.GetOriginIP();
 
         // add a tuple containing my info + parent info -> create a tuple
-        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_intNodeID, sh.GetReputation_O(), 22, sh.GetGPS_O(), 22, sh.GetBattery_O());
+        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_rep, sh.GetReputation_O(), m_gps, sh.GetGPS_O(), m_bat, sh.GetBattery_O());
         
         SendDataNew();
         
@@ -917,7 +942,7 @@
         NS_LOG_DEBUG(m_intNodeID << " -> [ProcessSRHello]: Already have a parent");
 
          // add a tuple containing my info + parent info -> create a tuple
-        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_intNodeID, sh.GetReputation_O(), 22, sh.GetGPS_O(), 22, sh.GetBattery_O());
+        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_rep, sh.GetReputation_O(), m_gps, sh.GetGPS_O(), m_bat, sh.GetBattery_O());
 
      }
 
@@ -956,7 +981,7 @@
     void
     SaharaRouting::AskToParentBF(){
       
-      NS_LOG_DEBUG(m_intNodeID << ", [AskToParentBF], asked BF to parent -> " << m_parentIP);
+      
       SaharaHeader sh;
       sh.SetMessageType(sahara::SaharaHeader::ASK_BF);
       sh.SetOriginIP(m_mainAddress);
@@ -964,7 +989,11 @@
       
       Ptr<Packet> packet = Create<Packet> ();
       packet->AddHeader(sh);
+
       Simulator::Schedule(MilliSeconds(2*m_intNodeID), &SaharaRouting:: SendPacketToDest, this, packet, m_parentIP);
+      if(!m_ackTimeoutAskToParentBF.IsRunning()) m_ackTimeoutAskToParentBF.Schedule(MilliSeconds(m_ackTimeSlot));
+
+      NS_LOG_DEBUG(m_intNodeID << ", [AskToParentBF], asked BF to parent -> " << m_parentIP);
 
     }
 
@@ -992,7 +1021,8 @@
     // after asked the BF of the parent, child can now evaluate parent's missing tuples
     void
     SaharaRouting::ReceivedFromParentBF(SaharaHeader sh){
-      
+      m_ackTimeoutAskToParentBF.Cancel();
+
       NS_LOG_DEBUG(m_intNodeID << ", [ReceivedFromParentBF], received BF from parent -> " << m_parentIP);
 
       // retreive BF of the parent
@@ -1088,6 +1118,7 @@
         NS_LOG_DEBUG(m_intNodeID << " -> No children, END SET RECONCILIATION FOR THIS NODE");
         
         r_Table.UpdateFileHistory();
+        m_ss.LoadMacIdMap();
         r_Table.SetAllTupleFalse();
         Dijkstra();
         PrintAllInfo(); 
@@ -1123,6 +1154,7 @@
       }
       NS_LOG_DEBUG(m_intNodeID << ", [SET RECONCILIATION] TERMINATED SUCCESSFULLY]");
       r_Table.UpdateFileHistory();
+      m_ss.LoadMacIdMap();
       r_Table.SetAllTupleFalse();
       PrintAllInfo();
       // m_packets_processed = 0;
@@ -1274,16 +1306,14 @@
 
        // send my data in broadcast 
 
-        
-        uint16_t def = 22;
 
         SaharaHeader shAck;
         shAck.SetMessageType(sahara::SaharaHeader::SR_HELLO);
         shAck.SetOriginIP(m_mainAddress);
         shAck.SetParentIP(m_parentIP);
-        shAck.SetReputation_O(m_intNodeID);
-        shAck.SetGPS_O(def);
-        shAck.SetBattery_O(def);
+        shAck.SetReputation_O(m_rep);
+        shAck.SetGPS_O(m_gps);
+        shAck.SetBattery_O(m_bat);
 
         //SaharaHeader(m_mainAddress, true);
         Ptr<Packet> ackPacket = Create<Packet>();
@@ -1335,6 +1365,30 @@
     m_nodeDeletePackets = true;
   }
 
+
+/*
+  bool
+  SaharaRouting::YourPromiscuousCallback(ns3::Ptr<ns3::NetDevice> device, ns3::Ptr<const ns3::Packet> packet, uint16_t protocol, const ns3::Address &source, const ns3::Address &destination, ns3::NetDevice::PacketType packetType)
+{
+    
+    ns3::Ptr<ns3::Packet> packetCopy = packet->Copy();
+
+    ns3::Ipv4Header ipv4Header;
+    packetCopy->RemoveHeader(ipv4Header);
+
+    ns3::Ptr<ns3::Node> node = device->GetNode();
+    ns3::Ptr<ns3::Ipv4> ipv4 = node->GetObject<ns3::Ipv4>();
+    ns3::Ipv4Address ipv4Addr = ipv4->GetAddress(ipv4->GetInterfaceForDevice(device), 0).GetLocal();
+    
+    ns3::UdpHeader udpHeader;
+    packetCopy->PeekHeader(udpHeader);
+    uint16_t port = udpHeader.GetDestinationPort();
+    
+
+    NS_LOG_UNCOND("Promiscuous packet received: " << ipv4Addr << " source: " << source << " port: " << port << " from: " << ipv4Header.GetSource() << " dest: " << ipv4Header.GetDestination() << "next hop: " << destination);
+    return true;  // Indicate the packet has been processed
+}
+*/
 
   /* How to manage updates in an efficient way ? That is a good challenge
   One idea:

@@ -34,7 +34,7 @@ with open(csv_file_path, mode='w', newline='') as file:
         posY = central_node[1] + (radius/2 + radius/4) * math.sin(angle)
         
         # Write the spoke node (nodeID i+1) to the CSV file
-        omega = 0.02
+        omega = 0.00
         writer.writerow([i + 1, posX, posY, (radius/2 + radius/4), omega])
 
     for i in range(int(num_nodes/2),( int(num_nodes/2) + int(num_nodes/4) )):
@@ -46,7 +46,7 @@ with open(csv_file_path, mode='w', newline='') as file:
         posY = central_node[1] + radius/2 * math.sin(angle)
         
         # Write the spoke node (nodeID i+1) to the CSV file
-        omega = -0.02
+        omega = -0.00
         writer.writerow([i, posX, posY, radius/2, omega])
 
     for i in range(int(num_nodes/2) + int(num_nodes/4), num_nodes):
@@ -58,6 +58,6 @@ with open(csv_file_path, mode='w', newline='') as file:
         posY = central_node[1] + radius/4 * math.sin(angle)
         
         # Write the spoke node (nodeID i+1) to the CSV file
-        omega = 0.02
+        omega = 0.00
         writer.writerow([i, posX, posY, radius/4, omega])
 csv_file_path

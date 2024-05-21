@@ -1,0 +1,18 @@
+
+
+□ Fix Bloom Filter lenght as minimum as possible
+□ Try to find why there are strange packets using sahara when a message has to be sent
+□ Routing table structure has to be modified
+
+
+Security on standard messages:
+▣ Drop packet and not forward
+□ Modify packet (source, payload, destination)
+□ Forward to wrong destination
+□ Forward multiple times (dos)
+□ Generate fake ack
+□ Solve Power Reduction Attack
+□ Consensus
+
+
+

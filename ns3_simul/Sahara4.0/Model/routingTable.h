@@ -29,6 +29,7 @@ public:
 	
 	RoutingTable();
     ~RoutingTable();
+    RoutingTable& operator=(const RoutingTable& other);
 	
 	bool AddTuple(Ipv4Address originIP, Ipv4Address hop1IP, uint16_t reputation_O, uint16_t reputation_H, uint16_t GPS_O,
      uint16_t GPS_H, uint16_t battery_O, uint16_t battery_H);
