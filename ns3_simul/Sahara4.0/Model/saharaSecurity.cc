@@ -12,6 +12,7 @@
 #include "routingTable.h"
 #include "ns3/timer.h"
 #include <algorithm>
+#include "globalData.h"
 
 
 
@@ -154,21 +155,23 @@ SaharaSecurity::PromiscuousCallback(ns3::Ptr<ns3::NetDevice> device, ns3::Ptr<co
     m_packetID = packet->GetUid();
 
 
-    if(port==256 || port==12345){
-    NS_LOG_DEBUG("Promiscuous packet received. Device IP: " << deviceIP << ", PacketID: "<< packet->GetUid() <<", source: " 
-                        << sourceIP << ", port: " << port << ", packet from: " << ipv4Header.GetSource() << 
-                                    ", packet dest: " << ipv4Header.GetDestination() << ", next hop (MAC): " << nextHopIP);
-    }
+    if(port==256 || port==12345){}
+
+    
 
     
     switch (port)
     {
     case 256:
-        NS_LOG_DEBUG("Sahara Routing packet detected");
+       // NS_LOG_DEBUG("Sahara Routing packet detected");
         break;
     
     case 12345:
-        // NS_LOG_DEBUG("Standard message detected");
+        NS_LOG_DEBUG("Promiscuous data packet received. Device IP: " << deviceIP << ", PacketID: "<< packet->GetUid() <<", source: " 
+                            << sourceIP << ", port: " << port << ", packet from: " << ipv4Header.GetSource() << 
+                                        ", packet dest: " << ipv4Header.GetDestination() << ", next hop (MAC): " << nextHopIP);
+        
+        //NS_LOG_DEBUG("Standard message detected");
         // deviceIP, source (MAC), packet from, packet dest, nextHop
         VerifyDrop(packetCopy, deviceIP, sourceIP, ipv4Header.GetSource(), ipv4Header.GetDestination(), nextHopIP);
         break;
@@ -186,9 +189,10 @@ void SaharaSecurity::VerifyDrop(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4A
     // deviceIP, source (MAC), detected source, packet from, packet dest,  nextHop
    
 
+   
     // I'm the next hop so ignore
-    if (deviceIP == nextHopIp || destIP == nextHopIp) return;
-
+    if (deviceIP == nextHopIp) return;
+  
     /*
     A -> B -> C
     \   /
@@ -294,16 +298,16 @@ void SaharaSecurity::VerifyDrop(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4A
         }
     }
     else{
+        
         //  check if I have in the history a packetID and nextHopIP
         std::tuple<uint32_t, Ipv4Address> toSearch(packet->GetUid(), nextHopIp);
-
         auto it = std::find(m_historyPackets.begin(), m_historyPackets.end(), toSearch);
         if (it != m_historyPackets.end()) {
             m_historyPackets.erase(it);
             NS_LOG_DEBUG(deviceIP << ": Packet " << packet->GetUid() << " already received by " << nextHopIp);
             return;
         } 
-        else if(m_rTable.checkExistenceOfNegh(deviceIP, nextHopIp)){
+        else if(m_rTable.checkExistenceOfNegh(deviceIP, nextHopIp) && destIP != nextHopIp){
             Timer* temp = new Timer;
             temp->SetFunction(&SaharaSecurity::DropTimeoutExpired, this);
             temp->SetArguments(deviceIP, detectedSourceIP, nextHopIp);
@@ -320,15 +324,120 @@ void
 SaharaSecurity::DropTimeoutExpired(Ipv4Address deviceIP, Ipv4Address sourceIP, Ipv4Address nextHopIP){
 
     NS_LOG_DEBUG("Timer expired, Device " << deviceIP << ": sourceIP " << sourceIP << ", node malicius " << nextHopIP);
+
+    // -1 on reputation of that node, return true if rep is still in range otherwise to be isolate
+    if(UpdateNodeReputation(nextHopIP)){
+
+    }else{
+        NS_LOG_DEBUG("Node to isolate ->" << nextHopIP);
+        // to be isolated
+        GenerateNewKey(nextHopIP);
+
+    }
       
 }
 
+void
+SaharaSecurity::GenerateNewKey(Ipv4Address nextHopIP){
 
+    std::ifstream infile("ips.txt");
 
+    std::ofstream tempFile("temp.txt");
+    if (!tempFile.is_open()) {
+        std::cerr << "Error opening temporary file." << std::endl;
+        return;
+    }
 
+    std::string line;
+    bool found = false;
+    while (getline(infile, line)) {
+        std::ostringstream oss;
+        nextHopIP.Print(oss);
+        if (line.find(oss.str()) == std::string::npos) {
+            tempFile << line << std::endl;
+        } else {
+            found = true;
+        }
+    }
 
+    infile.close();
+    tempFile.close();
 
-// 
+    if (found) {
+        if (remove("ips.txt") != 0) {
+            std::cerr << "Error deleting original file." << std::endl;
+        } else if (rename("temp.txt", "ips.txt") != 0) {
+            std::cerr << "Error renaming temporary file." << std::endl;
+        } else {
+            std::cout << "IP address deleted successfully." << std::endl;
+        }
+    } else {
+        std::cerr << "IP address not found in the file." << std::endl;
+        remove("temp.txt"); // Clean up the temporary file
+    }
+
+    std::string l;
+    while (std::getline(infile, l)) {
+        std::istringstream iss(l);
+        std::string id, mac;
+        
+        if (!(iss >> id >> mac)) {
+            std::cerr << "Error reading line: " << l << std::endl;
+            continue; // Skip malformed lines
+        }
+
+        m_mapMac[mac] = id;
+       
+    }
+
+    infile.close();
+
+    
+    // emulate key generation removing ip from the list
+    auto it = std::find(GlobalData::m_allowedIPs.begin(), GlobalData::m_allowedIPs.end(), nextHopIP);
+    if (it != GlobalData::m_allowedIPs.end()) {
+        // Step 4: Use erase to remove the element
+        GlobalData::m_allowedIPs.erase(it);
+        return;
+    }
+   
+}
+
+bool
+SaharaSecurity::UpdateNodeReputation(Ipv4Address nodeIP){
+      
+      uint16_t m_intNodeID;
+      std::ostringstream oss;
+      nodeIP.Print(oss);
+      std::string ip_string = oss.str();
+      size_t lastDotPos = ip_string.find_last_of('.');
+      if (lastDotPos != std::string::npos) {
+          // Extract the substring after the last dot
+          std::string numberAfterLastDot = ip_string.substr(lastDotPos + 1);
+          std::istringstream iss(numberAfterLastDot);
+          iss>>m_intNodeID;
+      } else {
+      }
+    
+
+    uint16_t m_rep;
+    uint16_t m_gps;
+    uint16_t m_bat;
+    uint16_t m_threshold = 150;
+
+    GlobalData::ReadDataFromFile(m_intNodeID,m_rep,m_gps,m_bat);
+
+    if((m_rep + 1) > m_threshold){
+        
+        return false;
+    }else{
+        m_rep = m_rep + 10;
+        GlobalData::WriteDataToFile(m_intNodeID,m_rep,m_gps,m_bat);
+        return true;
+    }
+
+}
+
 
 }
 }

@@ -2,6 +2,12 @@
 #include <vector>
 #include <tuple>
 #include <cmath>
+#include <queue>
+#include <unordered_map>
+#include <limits>
+#include "globalData.h"
+
+
 
 
 namespace ns3
@@ -25,7 +31,7 @@ namespace ns3
     return *this;
 }
 
-
+ 
     // init file routing tables history
     void
     RoutingTable::SetFile(std::string fileName){
@@ -36,7 +42,15 @@ namespace ns3
 
     }
 
+    /* OLD BUT VALID
     bool RoutingTable::AddTuple(Ipv4Address originIP, Ipv4Address hop1IP, uint16_t reputation_O, uint16_t reputation_H, uint16_t GPS_O, uint16_t GPS_H, uint16_t battery_O, uint16_t battery_H) {
+    
+    // security part:
+    if(!GlobalData::IpAllowed(originIP)) return false;
+    if(!GlobalData::IpAllowed(hop1IP)) return false;
+
+    //std::cout << originIP << " " << reputation_O << " " <<hop1IP << " " <<reputation_H << std::endl;
+    if(CheckDuplicate(originIP, hop1IP)) return false; // it is not useful I think // check later
 
     // Tuple doesn't exist, add it to the vector
     if (originIP.Get() > hop1IP.Get()) {
@@ -50,6 +64,40 @@ namespace ns3
     }
     return true;
 }
+*/
+
+    bool RoutingTable::AddTuple(Ipv4Address originIP, Ipv4Address hop1IP, uint16_t reputation_O, uint16_t reputation_H, uint16_t GPS_O, uint16_t GPS_H, uint16_t battery_O, uint16_t battery_H) {
+        
+        // security part:
+        if(!GlobalData::IpAllowed(originIP)) return false;
+        if(!GlobalData::IpAllowed(hop1IP)) return false;
+
+        //std::cout << originIP << " " << reputation_O << " " <<hop1IP << " " <<reputation_H << std::endl;
+        //if(CheckDuplicate(originIP, hop1IP)) return false; // it is not useful I think // check later
+
+        if (originIP.Get() > hop1IP.Get()) {
+            TupleType tup = std::make_tuple(hop1IP, originIP, reputation_H, reputation_O, GPS_H, GPS_O, battery_H, battery_O);
+            m_tuples.push_back(tup);
+        } else {
+            TupleType tup = std::make_tuple(originIP, hop1IP, reputation_O, reputation_H, GPS_O, GPS_H, battery_O, battery_H);
+            m_tuples.push_back(tup);
+        }
+        return true;
+    }
+
+    bool RoutingTable::AddTupleFlooding(Ipv4Address originIP, Ipv4Address hop1IP, uint16_t reputation_O, uint16_t reputation_H, uint16_t GPS_O, uint16_t GPS_H, uint16_t battery_O, uint16_t battery_H) {
+
+    //std::cout << originIP << " " << reputation_O << " " <<hop1IP << " " <<reputation_H << std::endl;
+    if(CheckDuplicate(originIP, hop1IP)) return false;
+
+    // Tuple doesn't exist, add it to the vector
+    if (originIP.Get() > hop1IP.Get()) {
+        TupleType tup = std::make_tuple(hop1IP, originIP, reputation_H, reputation_O, GPS_H, GPS_O, battery_H, battery_O);
+    } else {
+        TupleType tup = std::make_tuple(originIP, hop1IP, reputation_O, reputation_H, GPS_O, GPS_H, battery_O, battery_H);
+    }
+    return true;
+}
 
     
         
@@ -58,7 +106,7 @@ namespace ns3
 
         if (m_tuples.empty()) {
                 
-            NS_LOG_DEBUG("Routing table empty");
+            //NS_LOG_DEBUG("Routing table empty");
             return std::make_tuple(Ipv4Address("0.0.0.0"), Ipv4Address("0.0.0.0"), 0, 0, 0,0,0,0);
         }
         else {
@@ -81,19 +129,18 @@ namespace ns3
         }
         
         return false; // IP not found in any tuple
-        }
+    }
 
     size_t
     RoutingTable::GetSize(){
             
         size_t tuplesSize = m_tuples.size();
-        NS_LOG_DEBUG("size of routing table: " << tuplesSize);
+        //NS_LOG_DEBUG("size of routing table: " << tuplesSize);
         return tuplesSize;
     }
     
     void
     RoutingTable::HashTuple(TupleType& tup){
-
 
         CryptoPP::byte digest[CryptoPP::SHA256::DIGESTSIZE];
 
@@ -112,6 +159,7 @@ namespace ns3
         oss << srcAddress << dstAddress << port1 << port2 << port3 << port4 << port5 << port6;
         std::string concatenatedData = oss.str();
         bool maybePresent = true;
+        
        
         // Check each hashing function with different prefixes
         for (uint8_t prefix = 0; prefix < m_num_hash_functions; ++prefix) {
@@ -141,43 +189,38 @@ namespace ns3
         if(!maybePresent){
             m_tuples.push_back(tup);
         }
-           
-    /*
-        // Hash the input
-        m_hash.CalculateDigest(digest, reinterpret_cast<const CryptoPP::byte*>(concatenatedData.c_str()), concatenatedData.length());
-        
     
-         std::ostringstream strDig;
-        for (size_t i = 0; i < CryptoPP::SHA256::DIGESTSIZE; i++) {
-            strDig << std::hex << std::setfill('0') << std::setw(2) << (int)digest[i];
-        }
-
-       auto it = m_hashMap.find(strDig.str());
-        if (it != m_hashMap.end()) {
-            bool& checked = it->second.second;
-            checked = true;
-            NS_LOG_DEBUG("existing " << concatenatedData << ", hash: " << strDig.str());
-        } else {
-            // Add the TupleType to the map
-            m_tuples.push_back(tup);
-            auto tuplePtr = std::make_shared<TupleType>(tup);
-            m_hashMap[strDig.str()] = std::make_pair(tuplePtr, true);
-            NS_LOG_DEBUG("not existing " << concatenatedData << ", hash: " << strDig.str());
-
-           
-        }
-    */
     }
 
      std::vector<bool>
      RoutingTable::GetBloomFilter(){
+        CreateBloomFilter();
         return m_bloomFilter;
      }
+
+     std::vector<bool>
+     RoutingTable::GetDynamicBloomFilterIfActive(uint16_t sizeRTSender){
+        CreateDynamicBloomFilter(sizeRTSender);
+       
+        return m_bloomFilter;
+     }
+
+    u_int16_t 
+    RoutingTable::GetSizeRoutingTable(){
+        return m_tuples.size();
+    }
     
 
 
-    std::vector<bool> RoutingTable::CreateBloomFilter() {
-        
+    void 
+    RoutingTable::CreateBloomFilter() {
+
+    //NS_LOG_DEBUG("Creating Bloom filter Static of size: " << m_optimalNumberBits);
+
+    // First, resize the bloom filter
+    m_bloomFilter.resize(m_optimalNumberBits, false);
+
+    // Initialize a new bit array for the bloom filter
     std::vector<bool> bitArray(m_optimalNumberBits, false);
 
     CryptoPP::byte digest[CryptoPP::SHA256::DIGESTSIZE];
@@ -198,39 +241,106 @@ namespace ns3
         oss << srcAddress << dstAddress << port1 << port2 << port3 << port4 << port5 << port6;
         std::string concatenatedData = oss.str();
 
+         //NS_LOG_DEBUG("tuple: " << concatenatedData << " indexes: ");
+
         for (uint8_t prefix = 0; prefix < m_num_hash_functions; ++prefix) {
             // Create a new input with the prefix
-            
             std::string inputWithPrefix = std::to_string(prefix) + concatenatedData;
-            
+
             // Hash the input
             m_hash.CalculateDigest(digest, reinterpret_cast<const CryptoPP::byte*>(inputWithPrefix.c_str()), inputWithPrefix.length());
-            
+
             // Compute the index from the hash digest
             size_t index = 0;
-            for (size_t i = 0; i < CryptoPP::SHA256::DIGESTSIZE; ++i) {
-                index += digest[i];
-            }
-            index %= m_optimalNumberBits;
+            index = (digest[0] | (digest[1] << 8) | (digest[2] << 16) | (digest[3] << 24)) % m_optimalNumberBits; // Use a subset of bytes to calculate index
+            
 
-            // Set the corresponding bit to 1 in the bit array
+            // Set the corresponding bit in the local bit array
             bitArray[index] = true;
-
+            //NS_LOG_DEBUG("" << index);
         }
     }
 
-    std::string toPrintTosee;
-    for (int i = 0; i < m_optimalNumberBits; ++i) {
-        toPrintTosee += std::to_string(bitArray[i]);
-    }
 
-    NS_LOG_DEBUG("Optimal number of bits: " << m_optimalNumberBits);
-   // NS_LOG_DEBUG("Bloom filter " << toPrintTosee);
-    PrintAll();
+    // Assign the generated bit array to the bloom filter
+    m_bloomFilter = bitArray;
 
+   /*
+           for (bool element : m_bloomFilter) {
+            std::cout << element << " ";
+          }
+             std::cout << std::endl;
+             */
 
-    return bitArray;
 }
+
+
+
+   void RoutingTable::CreateDynamicBloomFilter(uint16_t sizeRTsender) {
+    double partial = (m_num_hash_functions * (GetSizeRoutingTable() + sizeRTsender)) / log(1 - pow(m_probabilityFP, 1.0 / m_num_hash_functions));
+    u_int32_t m_optimalNumberBitsDynamic = ceil(partial * (-1));
+
+    //NS_LOG_DEBUG("Creating Dynamic Bloom filter of size: " << m_optimalNumberBitsDynamic);
+
+    // First, resize the bloom filter
+    m_bloomFilter.resize(m_optimalNumberBitsDynamic, false);
+
+    // Initialize a new bit array for the bloom filter
+    std::vector<bool> bitArray(m_optimalNumberBitsDynamic, false);
+
+    CryptoPP::byte digest[CryptoPP::SHA256::DIGESTSIZE];
+
+    for (const auto& t : m_tuples) {
+        // Extract elements from the tuple
+        Ipv4Address srcAddress = std::get<0>(t);
+        Ipv4Address dstAddress = std::get<1>(t);
+        uint16_t port1 = std::get<2>(t);
+        uint16_t port2 = std::get<3>(t);
+        uint16_t port3 = std::get<4>(t);
+        uint16_t port4 = std::get<5>(t);
+        uint16_t port5 = std::get<6>(t);
+        uint16_t port6 = std::get<7>(t);
+
+        // Convert tuple elements to strings or bytes (as needed)
+        std::ostringstream oss;
+        oss << srcAddress << dstAddress << port1 << port2 << port3 << port4 << port5 << port6;
+        std::string concatenatedData = oss.str();
+
+         //NS_LOG_DEBUG("tuple: " << concatenatedData << " indexes: ");
+
+        for (uint8_t prefix = 0; prefix < m_num_hash_functions; ++prefix) {
+            // Create a new input with the prefix
+            std::string inputWithPrefix = std::to_string(prefix) + concatenatedData;
+
+            // Hash the input
+            m_hash.CalculateDigest(digest, reinterpret_cast<const CryptoPP::byte*>(inputWithPrefix.c_str()), inputWithPrefix.length());
+
+            // Compute the index from the hash digest
+            size_t index = 0;
+            index = (digest[0] | (digest[1] << 8) | (digest[2] << 16) | (digest[3] << 24)) % m_optimalNumberBitsDynamic; // Use a subset of bytes to calculate index
+            
+            // Set the corresponding bit in the local bit array
+            bitArray[index] = true;
+            //NS_LOG_DEBUG("" << index);
+        }
+    }
+    /*
+    // Print the bloom filter elements
+    std::cout << "bit array elements: ";
+    for (bool element : bitArray) {
+        std::cout << element << " ";
+    }
+    std::cout << std::endl;
+
+    PrintAll();
+    */
+
+    // Assign the generated bit array to the bloom filter
+    m_bloomFilter = bitArray;
+
+}
+
+
 
 
     
@@ -246,144 +356,151 @@ namespace ns3
 
     }
 
-
-    void
-    RoutingTable::RunDijkstra(Ipv4Address myAddress){
-
-        
-            
-        NS_LOG_DEBUG("[RunDijkstra - Routing Table] -> " << myAddress);
+    void 
+    RoutingTable::RunDijkstraNew(Ipv4Address myAddress){
     
-        // from this node to all other nodes
-        m_distance.clear();
-        m_visited.clear();
-        m_routes.clear();
-        m_previous.clear();
+    m_shortestPaths.clear();
 
-         NS_LOG_DEBUG("[RunDijkstra - Routing Table] -> " << myAddress << " Cleared");
+    std::map<Ipv4Address, uint16_t> distances;
+    std::map<Ipv4Address, Ipv4Address> previous;
+    std::priority_queue<std::pair<uint16_t, Ipv4Address>, std::vector<std::pair<uint16_t, Ipv4Address>>, std::greater<std::pair<uint16_t, Ipv4Address>>> pq;
+    std::map<Ipv4Address, std::vector<std::pair<Ipv4Address, uint16_t>>> topology; // nodeIP, vector of neighbors and cost
+   
 
-        // fill this list, at the beginning m_distance is max and all nodes are unvisited
-        for (const auto& tup : m_tuples) {
-           
-                m_distance[std::get<0>(tup)] = 255;
-                m_visited[std::get<0>(tup)] = false;
-                m_previous[std::get<0>(tup)] = Ipv4Address("0.0.0.0");
+    
+    // Initialize distances
+    for (const auto& node : m_tuples) {
+        Ipv4Address src = std::get<0>(node);
+        Ipv4Address dest = std::get<1>(node);
+        uint16_t cost = (std::get<2>(node) + std::get<3>(node)) / 2;
+        //NS_LOG_DEBUG(src << " "<< dest << "cost: " << cost);
 
-                m_distance[std::get<1>(tup)] = 255;
-                m_visited[std::get<1>(tup)] = false;
-                m_previous[std::get<1>(tup)] = Ipv4Address("0.0.0.0");
-            
-            
-        }
+
+        //
+            const Ipv4Address& originIP = std::get<0>(node);
+            const Ipv4Address& hop1IP = std::get<1>(node);
+            uint16_t repO = std::get<2>(node);
+            uint16_t repH = std::get<3>(node);
+            uint16_t GPSO = std::get<4>(node);
+            uint16_t GPSH = std::get<5>(node);
+            uint16_t batteryO = std::get<6>(node);
+            uint16_t batteryH = std::get<7>(node);
+                
+            // Print elements
+            //NS_LOG_DEBUG("Tuple: " << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH);
+        //
         
-        NS_LOG_DEBUG("[RunDijkstra - Routing Table] -> " << myAddress << " Initilized vectors");
+        topology[src].emplace_back(dest, cost);
+        topology[dest].emplace_back(src, cost);
 
-        
-        m_distance[myAddress] = 0;
-        Ipv4Address ind;
-            
-        for(int i = 0; i < m_tuples.size(); i++){
-            uint16_t min = 255;
-
-            for(const auto& tup : m_distance){
-                if(m_visited[tup.first]==false and tup.second<min){
-                    min = tup.second; //m_distance[tup];
-                    ind = tup.first;    
-                }   
-            }
-
-            m_visited[ind] = true;
-            
-            for(const auto& tup : m_distance){
-                // updating the m_distance of neighbouring vertex
-                if(!m_visited[tup.first] and checkExistenceOfNegh(ind,tup.first) and m_distance[ind]!=255 && m_distance[ind] + getDist(ind, tup.first) < m_distance[tup.first]){
-                        
-                m_distance[tup.first]=m_distance[ind]+getDist(ind, tup.first);
-                m_previous[tup.first] = ind;
-                            
-                }
-            }
-
+        if (distances.find(src) == distances.end()) {
+            distances[src] = (src == myAddress) ? 0 : UINT16_MAX;
+            previous[src] = Ipv4Address();
         }
+        if (distances.find(dest) == distances.end()) {
+            distances[dest] = (dest == myAddress) ? 0 : UINT16_MAX;
+            previous[dest] = Ipv4Address();
+        }
+       
+    }
+    
+    for(const auto& node : distances){
+        //NS_LOG_DEBUG("Neighbor: "<< node.first << " distance: " << node.second);
+    }
 
     /*
-        for (const auto& dest : m_distance) {
-            Ipv4Address current = dest.first;
+    for (const auto& pair : topology) {
+        std::cout << "IP: " << pair.first << std::endl;
+        for (const auto& vecPair : pair.second) {
+            std::cout << "  Negh: " << vecPair.first << ", AvgRep: " << vecPair.second << std::endl;
+        }
+    }
+    */
+    
+    //distances[myAddress] = 0;
+    pq.emplace(0, myAddress);
+
+     // Dijkstra's algorithm
+   while (!pq.empty()) {
+    auto [currentDist, u] = pq.top();
+    pq.pop();
+
+    //std::cout << "Processing Node: " << u << " with currentDist: " << currentDist << std::endl;
+
+    if (currentDist > distances[u]) continue;
+
+    for (const auto& [v, weight] : topology[u]) {
+        //std::cout << "  Checking neighbor: " << v << " with edge weight: " << weight << std::endl;
+
+        uint16_t newDist = currentDist + weight;
+        //std::cout << "  Calculated newDist: " << newDist << " for neighbor: " << v << std::endl;
+
+        if (newDist < distances[v]) {
+            //std::cout << "  Updating distance for: " << v << " from " << distances[v] << " to " << newDist << std::endl;
+            distances[v] = newDist;
+            previous[v] = u;
+            pq.emplace(newDist, v);
+        }
+    }
+}
+
+
+    //NS_LOG_DEBUG("Need to recontruct ");
+   // Reconstruct shortest paths
+   
+    for (const auto& [dest, dist] : distances) {
+        if (dist == UINT16_MAX) {
+            continue;
+        }
+
+        std::vector<Ipv4Address> path;
+        for (Ipv4Address at = dest; at != myAddress; at = previous[at]) {
+            path.push_back(at);
+        }
+        path.push_back(myAddress);
+        std::reverse(path.begin(), path.end());
+        m_shortestPaths[dest] = path;
+    }
+
+    for(const auto& [dest, path] : m_shortestPaths ){
+        if(checkExistenceOfNegh(dest, myAddress)){
             std::vector<Ipv4Address> path;
-            while (current != myAddress) {
-                path.push_back(current);
-                current = m_previous[current];
-            }
-            std::reverse(path.begin(), path.end());
-            m_routes[dest.first] = path;
-        }*/
-
-        for (const auto& dest : m_distance) {
-            Ipv4Address current = dest.first;
-            std::vector<Ipv4Address> path;
-            try {
-                while (current != myAddress) {
-                    if (m_previous.find(current) == m_previous.end()) {
-                        // Handle error: No previous node found for current node
-                        NS_LOG_DEBUG("Not found previus -> not existing path");
-                       
-                        break;
-                        //throw std::runtime_error("No previous node found for current node.");
-
-                    }
-                    else{
-                        path.push_back(current);
-                        current = m_previous.at(current);
-                    }
-                }
-                path.push_back(myAddress); // Include myAddress in the path
-                m_routes[dest.first] = path;
-            } catch (const std::exception& e) {
-                // Handle error: Exception occurred during path calculation
-                std::cerr << "Error while calculating path: " << e.what() << std::endl;
-                // Optionally, you can choose to continue with the next destination
-            }
+             path.push_back(myAddress);
+             path.push_back(dest);
+            m_shortestPaths[dest] = path;
         }
+    }
 
-       // m_tuples.clear();
-
-
-        // PRINTING DIJ RESULTS
-        /*
-         NS_LOG_DEBUG("[RunDijkstra - Routing Table] -> " << myAddress << " second loop passed ");
-
-        NS_LOG_DEBUG("Printing m_visited vector...");
-        for (const auto& tu : m_visited) {            
-            
-            // Print elements
-            NS_LOG_DEBUG("m_visited: " << tu.first << ", " << tu.second);
+    /*
+    // For debugging or further processing, print these paths
+    for (const auto& [dest, path] : m_shortestPaths) {
+        std::cout << "Path from " << myAddress << " to " << dest << "(Cost: " << distances[dest] << ")" << ": ";
+        for (const auto& node : path) {
+            std::cout << node << " ";
         }
-        NS_LOG_DEBUG("End______________________________________");
-           
+        std::cout << std::endl;
+    }
+    */
+    
+    
+    
 
-        for (const auto& tu : m_distance) {
-               
-            NS_LOG_DEBUG("m_distance: " << tu.first << ", " << tu.second);
-        }
-        NS_LOG_DEBUG("End______________________________________");
-
-
-        for (const auto& e : m_routes) {
-            NS_LOG_DEBUG("Dest: " << e.first);
-            for (const auto& hop : e.second) {
-                NS_LOG_DEBUG(hop);
-            }
-        }
-        NS_LOG_DEBUG("End______________________________________");
-        */
-        // DeleteAll(); removed to test set reconc
     }
 
 
+    void
+    RoutingTable::RunDijkstra(Ipv4Address myAddress){
+        
+
+        RunDijkstraNew(myAddress);
+        
+    }
+
+    
     bool
     RoutingTable::checkExistenceOfNegh(Ipv4Address ip1, Ipv4Address ip2){
         for(const auto& t : m_tuples){
-            if( (std::get<0>(t)==ip1 and std::get<1>(t)==ip2) or (std::get<1>(t)==ip1 and std::get<0>(t)==ip2)){
+            if( (std::get<0>(t)==ip1 and std::get<1>(t)==ip2) || (std::get<1>(t)==ip1 and std::get<0>(t)==ip2)){
                 return true;
             }
         }
@@ -416,41 +533,26 @@ namespace ns3
 
     Ipv4Address RoutingTable::LookUpAddr(Ipv4Address source, Ipv4Address dest){
             
-           
-            NS_LOG_DEBUG("[RTABLE, LookUpAddr], DEST -> " <<  dest);
 
-            auto it = m_routes.find(dest);
-            if (it == m_routes.end()) {
-                return Ipv4Address("0.0.0.0"); // Return an invalid address if route doesn't exist
+            // Check if the destination is reachable from the source
+            if (m_shortestPaths.find(dest) == m_shortestPaths.end()) {
+                // Destination is unreachable
+                return Ipv4Address("0.0.0.0"); // Or any appropriate handling for unreachable destination
             }
 
-            // dest route
-            const std::vector<Ipv4Address>& route = it->second;
+            // Get the shortest path from source to destination
+            const std::vector<Ipv4Address>& path = m_shortestPaths.at(dest);
 
-            // Find the next hop in the route
-            auto nextHopIt = std::find(route.begin(), route.end(), source);
+            // Ensure source is not the destination
+            if (path.size() < 2 || path.front() != source) {
+                // Unexpected path or source is the destination
+                return Ipv4Address("0.0.0.0"); // Or any appropriate handling for unexpected path
+            }
+
+            // Return the next hop in the path
+            return path[1];
             
-            if((nextHopIt-1) == route.begin()){
-                 NS_LOG_DEBUG("[RTABLE, LookUpAddr], are neighbors-> " <<  dest);
-                return dest;
-            }
-            else{
-                NS_LOG_DEBUG("[RTABLE, LookUpAddr]-> " <<   *(nextHopIt-1));
-                return *(nextHopIt-1);
-            }
-           
-
-            /*
-            if (nextHopIt != route.end() &&  (nextHopIt + 1) != route.end()){
-                NS_LOG_DEBUG("[RTABLE, LookUpAddr], next hop -> " <<  *(nextHopIt + 1));
-                return  *(nextHopIt + 1);
-            } 
-                else {
-                //it's the last hop
-                NS_LOG_DEBUG("[RTABLE, LookUpAddr], next hop last hop-> " <<  dest);
-                return dest;
-            }
-            */
+          
 
         }   
 
@@ -462,24 +564,15 @@ namespace ns3
     K is the number of hashing functions
     M is the lenght of the bloom filter */
    bool RoutingTable::ProcessSetReconciliation(std::vector<bool> bfs) {
-    // Constants
+     // Constants
+    //NS_LOG_DEBUG("[ProcessSetReconciliationStatic]");
+
+    // Initialize the local bit array to match the size of the received Bloom filter
+    std::vector<bool> bitArray(bfs.size(), false);
+    m_senderTuplMissing.clear();
     
-    NS_LOG_DEBUG("[ProcessSetReconciliation]");
-
-
+    //NS_LOG_DEBUG("[ProcessSetReconciliationStatic] BF SIZE " << bfs.size());
     
-     std::vector<bool> bitArray(m_optimalNumberBits, false);
-
-    /*
-    // Ensure the received Bloom filter has the same size as expected
-    if (bfs.size() != m_optimalNumberBits) {
-        NS_LOG_DEBUG("Size mismatch between own Bloom filter and received Bloom filter");
-        return false;
-    }
-    */
-
-    NS_LOG_DEBUG("BF own size -> " << m_optimalNumberBits << ", BF received size-> " << bfs.size());
-
     // Process each tuple
     for (const auto& t : m_tuples) {
         // Extract elements from the tuple
@@ -492,47 +585,133 @@ namespace ns3
         uint16_t port5 = std::get<6>(t);
         uint16_t port6 = std::get<7>(t);
 
+        // Create a concatenated string of all elements in the tuple
         std::ostringstream oss;
         oss << srcAddress << dstAddress << port1 << port2 << port3 << port4 << port5 << port6;
         std::string concatenatedData = oss.str();
+
         CryptoPP::byte digest[CryptoPP::SHA256::DIGESTSIZE];
 
-        // Check each hashing function with different prefixes
+        // Check each hash function with different prefixes
+        bool tupleMissing = false;
+        //NS_LOG_DEBUG("tuple :" << concatenatedData << " indexes: ");
+
         for (uint8_t prefix = 0; prefix < m_num_hash_functions; ++prefix) {
             // Create a new input with the prefix
             std::string inputWithPrefix = std::to_string(prefix) + concatenatedData;
-            
+
             // Hash the input
             m_hash.CalculateDigest(digest, reinterpret_cast<const CryptoPP::byte*>(inputWithPrefix.c_str()), inputWithPrefix.length());
-            
+
             // Compute the index from the hash digest
             size_t index = 0;
-            for (size_t i = 0; i < CryptoPP::SHA256::DIGESTSIZE; ++i) {
-                index += digest[i];
-            }
-            index %= m_optimalNumberBits;
+            u_int32_t bfsSize = static_cast<u_int32_t>(bfs.size());
+            index = (digest[0] | (digest[1] << 8) | (digest[2] << 16) | (digest[3] << 24)) % bfsSize; // Use a subset of bytes to calculate index
+            //NS_LOG_DEBUG("TO DIVIDE?: " << bfsSize);
+
 
             // Set the corresponding bit in the local bit array
             bitArray[index] = true;
 
             // Compare the local bit array and the received Bloom filter
-            if (bfs[index] == bitArray[index]) {
-                NS_LOG_DEBUG("Tuple maybe present");
-            } else {
-                NS_LOG_DEBUG("Tuple missing in sender -> " << srcAddress << ", " << dstAddress);
-                m_senderTuplMissing.push_back(t);
-                break; // No need to check further hashing functions if one failed
+            if (bfs[index] != bitArray[index]) {
+                m_senderTuplMissing.push_back(t);  // Add the tuple to missing tuples
+                //NS_LOG_DEBUG("MISSING IN CHILD: " << concatenatedData << " index " << index);
+                tupleMissing = true;
+                break;  // No need to check further hashing functions if one failed
             }
+        }
+
+        if (!tupleMissing) {
+            //NS_LOG_DEBUG("Tuple may be present");
         }
     }
 
-    // Provide appropriate logs based on whether there are missing elements or not
+    // Log whether there are missing elements or not
     if (m_senderTuplMissing.size() > 0) {
-        NS_LOG_DEBUG("Missing Elements in sender set");
+        //NS_LOG_DEBUG("Missing one or more elements in sender set");
     } else if (m_senderTuplMissing.size() == 0 && !m_finalRound) {
-        NS_LOG_DEBUG("Seems not missing elements, final check round");
+        //NS_LOG_DEBUG("Seems not missing elements, final check round");
     } else {
-        NS_LOG_DEBUG("Set reconciliation terminated");
+        //NS_LOG_DEBUG("Set reconciliation terminated");
+    }
+
+    return true;
+}
+
+
+
+bool RoutingTable::ProcessSetReconciliationDynamic(std::vector<bool> bfs) {
+    // Constants
+    //NS_LOG_DEBUG("[ProcessSetReconciliationDynamic]");
+
+    // Initialize the local bit array to match the size of the received Bloom filter
+    std::vector<bool> bitArray(bfs.size(), false);
+    m_senderTuplMissing.clear();
+    
+ //NS_LOG_DEBUG("[ProcessSetReconciliationDynamic] BF SIZE " << bfs.size());
+    // Process each tuple
+    for (const auto& t : m_tuples) {
+        // Extract elements from the tuple
+        Ipv4Address srcAddress = std::get<0>(t);
+        Ipv4Address dstAddress = std::get<1>(t);
+        uint16_t port1 = std::get<2>(t);
+        uint16_t port2 = std::get<3>(t);
+        uint16_t port3 = std::get<4>(t);
+        uint16_t port4 = std::get<5>(t);
+        uint16_t port5 = std::get<6>(t);
+        uint16_t port6 = std::get<7>(t);
+
+        // Create a concatenated string of all elements in the tuple
+        std::ostringstream oss;
+        oss << srcAddress << dstAddress << port1 << port2 << port3 << port4 << port5 << port6;
+        std::string concatenatedData = oss.str();
+
+        CryptoPP::byte digest[CryptoPP::SHA256::DIGESTSIZE];
+
+        // Check each hash function with different prefixes
+        bool tupleMissing = false;
+        //NS_LOG_DEBUG("tuple :" << concatenatedData << " indexes: ");
+
+        for (uint8_t prefix = 0; prefix < m_num_hash_functions; ++prefix) {
+            // Create a new input with the prefix
+            std::string inputWithPrefix = std::to_string(prefix) + concatenatedData;
+
+            // Hash the input
+            m_hash.CalculateDigest(digest, reinterpret_cast<const CryptoPP::byte*>(inputWithPrefix.c_str()), inputWithPrefix.length());
+
+            // Compute the index from the hash digest
+            size_t index = 0;
+            u_int32_t bfsSize = static_cast<u_int32_t>(bfs.size());
+            index = (digest[0] | (digest[1] << 8) | (digest[2] << 16) | (digest[3] << 24)) % bfsSize; // Use a subset of bytes to calculate index
+            //NS_LOG_DEBUG("TO DIVIDE?: " << bfsSize);
+
+           
+            // Set the corresponding bit in the local bit array
+            bitArray[index] = true;
+            //NS_LOG_DEBUG("" << index);
+
+            // Compare the local bit array and the received Bloom filter
+            if (bfs[index] != bitArray[index]) {
+                m_senderTuplMissing.push_back(t);  // Add the tuple to missing tuples
+                //NS_LOG_DEBUG("MISSING: " << concatenatedData << " index " << index);
+                tupleMissing = true;
+                break;  // No need to check further hashing functions if one failed
+            }
+        }
+
+        if (!tupleMissing) {
+            //NS_LOG_DEBUG("Tuple may be present");
+        }
+    }
+
+    // Log whether there are missing elements or not
+    if (m_senderTuplMissing.size() > 0) {
+        //NS_LOG_DEBUG("Missing one or more elements in sender set");
+    } else if (m_senderTuplMissing.size() == 0 && !m_finalRound) {
+        //NS_LOG_DEBUG("Seems not missing elements, final check round");
+    } else {
+        //NS_LOG_DEBUG("Set reconciliation terminated");
     }
 
     return true;
@@ -549,28 +728,12 @@ namespace ns3
        m_blockchain.addBlock(m_tuples);
        m_blockchain.storeToFile(m_outputFile);
 
-        /*
-       for (const auto& tuple : m_tuples) {
-            // Extract elements from the tuple
-            const Ipv4Address& originIP = std::get<0>(tuple);
-            const Ipv4Address& hop1IP = std::get<1>(tuple);
-            uint16_t repO = std::get<2>(tuple);
-            uint16_t repH = std::get<3>(tuple);
-            uint16_t GPSO = std::get<4>(tuple);
-            uint16_t GPSH = std::get<5>(tuple);
-            uint16_t batteryO = std::get<6>(tuple);
-            uint16_t batteryH = std::get<7>(tuple);
-                
-            // write elements
-            m_outputFile << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH << std::endl;
-        }
-        */
 
     }
 
     void
     RoutingTable::PrintAll(){
-        NS_LOG_DEBUG("Printing routing table node");
+        //NS_LOG_DEBUG("Printing routing table");
         
         for (const auto& tuple : m_tuples) {
                 // Extract elements from the tuple
@@ -584,40 +747,11 @@ namespace ns3
             uint16_t batteryH = std::get<7>(tuple);
                 
             // Print elements
-            NS_LOG_DEBUG("Tuple: " << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH);
+            //NS_LOG_DEBUG("Tuple: " << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH);
         }
-        NS_LOG_DEBUG("End______________________________________");
+        //NS_LOG_DEBUG("End______________________________________");
 
 
-/*
-         for (const auto& entry : m_hashMap) {
-        // Key (digest) is a pointer to CryptoPP::byte
-        CryptoPP::byte* key = entry.first;
-
-        // Convert the key (digest) from pointer to a printable format (e.g., hex representation)
-        std::ostringstream oss;
-        oss << "Key (digest): ";
-        for (size_t i = 0; i < CryptoPP::SHA256::DIGESTSIZE; i++) {
-            oss << std::hex << std::setfill('0') << std::setw(2) << (int)key[i];
-        }
-        oss << std::dec; // Reset format
-
-        // Value is a pair<TupleType&, bool>
-        const auto& value = entry.second;
-        TupleType& tuple = value.first;
-        bool flag = value.second;
-
-        // Print the tuple elements as needed (you need to provide logic to print the tuple)
-        oss << " | Tuple: " << std::get<0>(tuple) << ", " <<std::get<1>(tuple); // Replace this line with specific logic to print tuple elements
-        
-        // Print the flag
-        oss << " | Flag: " << std::boolalpha << flag;
-
-        // End of the current entry
-        oss << std::endl;
-        NS_LOG_DEBUG(oss.str());
-    }
-*/
    
     }
 
@@ -645,6 +779,13 @@ namespace ns3
         }
         
         
+    }
+
+    void
+    RoutingTable::ResetVariables(){
+        m_tuples.clear();
+        std::fill(m_bloomFilter.begin(), m_bloomFilter.end(), false);
+
     }
 
    

@@ -124,53 +124,62 @@ class SaharaRouting : public Ipv4RoutingProtocol
     Timer m_auditTimeoutAckInverseSR;
     Timer m_SR; // flooding
     Timer m_ackTimeoutAskToParentBF;
+    Timer m_printRT;
+    Timer m_ackTimeoutWaitMissingFromChild;
 
-
+    // default node info
+    uint16_t m_rep = 1;
+    uint16_t m_gps = 10;
+    uint16_t m_bat = 100;
+    
     // modify this value to active flooding or set reconcilation, NOT BOTH at the same time
     bool m_flooding_ON = false;
     bool m_sr_ON = true;
+    bool m_sr_dynamic_ON = false;
 
     // millisecond to start
     uint16_t m_timeToStartFlooding = 2000;
-    uint16_t m_timeToStartDijskra = 5000;
-    uint16_t m_timeToStartPacketQueue = 6000;
+    uint16_t m_timeToStartDijskra = 20000; //it was 5000 default
+    uint16_t m_timeToStartPacketQueue = 20000;// it was 6000 default
 
     // millisecond to set up frequency
-    uint16_t m_frequencyFlooding = 100000;
-    uint16_t m_frequencyDijskra = 20000;
-    uint16_t m_frequencyLookUpPacketQueue = 20000;
+    uint16_t m_frequencyFlooding = 65000;// max number is like 65000
+    uint16_t m_frequencyDijskra = 65000;
+    uint16_t m_frequencyLookUpPacketQueue = 65000;
     uint16_t m_startSR = 2000;
-    uint16_t m_frequencySR = 25000;
+    uint16_t m_frequencySR = 65000;
+
+    uint16_t m_frequencyPrintRT = 6000;
+
 
     // ack reception timeslot
     uint16_t m_ackTimeSlot = 800;
 
     uint32_t m_currentSequenceNumber;
     PacketQueue m_queue;
-
-    // default node info when started
-    uint16_t m_rep = 255;
-    uint16_t m_gps = 10;
-    uint16_t m_bat = 100;
    
 
     // mobility is to stop movements while set reconciliation is performed
     bool m_run;
 
     // set reconciliation variables
-    Ipv4Address m_parentIP;
+    Ipv4Address m_parentIP = Ipv4Address("0.0.0.0");
     std::vector<bool> m_parentBF;
     std::map<Ipv4Address, std::vector<bool>> m_listBFChildren;
     std::map<Ipv4Address, bool> m_listSetRecDone;
     bool m_SRCompleted = false;
-
-
+    bool m_reset = true; 
+    bool m_alreadyDone = false;
+    bool m_previousChildProcessed = true;  // Flag to track if the parent is free to process a request
+    std::queue<SaharaHeader> m_childRequestQueue;  // Queue to hold child requests
+    
+    
     // to test a new approach
     Timer m_auditTimeoutAckSRNEW; // timeout ack from children during set reconciliation
 
     // to test malicius node that drops packets
     bool m_nodeDeletePackets = false;
-    uint16_t m_IDcompromisedNode = 3;
+    uint16_t m_IDcompromisedNode = 23;
 
     SaharaSecurity m_ss = SaharaSecurity(r_Table);
     
@@ -227,6 +236,15 @@ class SaharaRouting : public Ipv4RoutingProtocol
     void ReceivedFromParentBF(SaharaHeader sh);
     void SendToChildBF(SaharaHeader sh);
     void ResetVariablesUpdate();
+    void AskBF2C(Ipv4Address ipChild);
+    void SendBFC2P(SaharaHeader sh);
+    void ReceivedFromChildBF(SaharaHeader sh);
+
+    // Helper method to process the next request in the queue
+    void ProcessNextChildRequest();
+
+    // Method to handle acknowledgment/response from the child
+    void OnChildResponseReceived();
 
   // statistics
     void PrintStatistics();

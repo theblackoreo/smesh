@@ -19,7 +19,6 @@
 #include "saharaBlock.h"
 
 
-
 namespace ns3{
 
 
@@ -32,6 +31,9 @@ public:
     RoutingTable& operator=(const RoutingTable& other);
 	
 	bool AddTuple(Ipv4Address originIP, Ipv4Address hop1IP, uint16_t reputation_O, uint16_t reputation_H, uint16_t GPS_O,
+     uint16_t GPS_H, uint16_t battery_O, uint16_t battery_H);
+
+    bool AddTupleFlooding(Ipv4Address originIP, Ipv4Address hop1IP, uint16_t reputation_O, uint16_t reputation_H, uint16_t GPS_O,
      uint16_t GPS_H, uint16_t battery_O, uint16_t battery_H);
 	
     std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t> getLastTupleTest();
@@ -49,8 +51,9 @@ public:
 	bool checkExistenceOfNegh(Ipv4Address ip1, Ipv4Address ip2);
     uint16_t getDist(Ipv4Address ip1, Ipv4Address ip2);
     Ipv4Address LookUpAddr(Ipv4Address source, Ipv4Address dest); 
-    std::vector<bool> CreateBloomFilter();
+    void CreateBloomFilter();
     bool ProcessSetReconciliation(std::vector<bool> bfs);
+    bool ProcessSetReconciliationDynamic(std::vector<bool> bfs);
     std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> GetMissingTuples();
 
     void SetFile(std::string fileName);
@@ -58,6 +61,15 @@ public:
     void SetAllTupleFalse();
     void UpdateRoutingTable();
     std::vector<bool> GetBloomFilter();
+
+    void CreateDynamicBloomFilter(uint16_t sizeRTSender);
+    std::vector<bool> GetDynamicBloomFilterIfActive(uint16_t sizeRTSender);
+
+    // to test
+    void RunDijkstraNew(Ipv4Address myAddress);
+    void ResetVariables();
+    
+    u_int16_t GetSizeRoutingTable();
    
 
 private:
@@ -79,17 +91,21 @@ private:
 	
     // store file
     std::ofstream m_outputFile;
-
+ 
     // to manage set reconciliation map: hash is the key and then tuple and bool. bool is the flag
     using MapType = std::unordered_map<std::string, std::pair<std::shared_ptr<TupleType>, bool>>;
 
     MapType m_hashMap;
-    u_int32_t m_nTuplesWorstCase = 450;
-    double m_probabilityFP = 0.1;
+    u_int32_t m_nTuplesWorstCase = 300;
+    bool m_sr_dynamic_ON = false;
+
+    double m_probabilityFP = 0.01;
     std::vector<bool> m_bloomFilter;
     u_int32_t m_optimalNumberBits;
     Blockchain m_blockchain;
    
+    // new disj
+    std::map<Ipv4Address, std::vector<Ipv4Address>> m_shortestPaths;
 
 private:
  // updates

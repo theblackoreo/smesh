@@ -16,13 +16,13 @@ def read_throughput_values(file_path):
     return throughput_values
 
 def calculate_mean_average_every_100(values):
-    """Calculate mean average of values every 100 data points."""
+    """Calculate mean average of values every 5 data points."""
     mean_averages = []
     num_points = len(values)
     
-    for i in range(0, num_points, 100):
-        # Calculate the mean for the next 100 points (or remaining points)
-        mean_average = np.mean(values[i:i + 100])
+    for i in range(0, num_points, 5):
+        # Calculate the mean for the next 5 points (or remaining points)
+        mean_average = np.mean(values[i:i + 5])
         mean_averages.append(mean_average)
         
     return mean_averages
@@ -30,18 +30,18 @@ def calculate_mean_average_every_100(values):
 def plot_data_and_mean(values, mean_averages):
     """Plot data points as 'x' markers and mean averages as a line with 'o' markers."""
     # Create an x-axis based on the number of data points
-    x_axis_data = np.arange(1, len(values) + 1) / 100
-    x_axis_mean = np.arange(1, len(mean_averages) + 1)
+    x_axis_data = np.arange(len(values)) * 0.2
+    x_axis_mean = np.arange(len(mean_averages)) * 1
     
     # Plot all data points as "x" markers
     plt.figure()
     plt.plot(x_axis_data, values, 'x', label='Throughput Data', alpha=0.7)
     
     # Plot mean averages as a line with "o" markers
-    plt.plot(x_axis_mean, mean_averages, 'o-', label='Mean Average (every 100 points)', color='red')
+    plt.plot(x_axis_mean, mean_averages, 'o-', label='Mean Average (every 5 points)', color='red')
     
     # Add labels and legend
-    plt.title('Throughput Data and Mean Average every 100 data points')
+    plt.title('Throughput Data and Mean Average every 5 data points')
     plt.xlabel('Seconds ')
     plt.ylabel('Throughput (Mbs)')
     plt.legend()

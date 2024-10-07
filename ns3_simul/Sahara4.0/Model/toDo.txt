@@ -13,6 +13,8 @@ Security on standard messages:
 □ Generate fake ack
 □ Solve Power Reduction Attack
 □ Consensus
+□ Timer fix in set reconciliation in order to avoid duplicate blocks
+
 
 
 

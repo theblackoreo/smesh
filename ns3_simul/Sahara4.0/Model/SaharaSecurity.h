@@ -42,7 +42,8 @@ public:
     void VerifyDrop(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4Address detectedSourceIP, Ipv4Address sourceIP, Ipv4Address destIP, Ipv4Address nextHopIp);
 
     void DropTimeoutExpired(Ipv4Address deviceIP, Ipv4Address sourceIP, Ipv4Address nextHopIP);
-
+    bool UpdateNodeReputation(Ipv4Address nodeIP);
+    void GenerateNewKey(Ipv4Address maliciusIPToRemove);
 
 
 

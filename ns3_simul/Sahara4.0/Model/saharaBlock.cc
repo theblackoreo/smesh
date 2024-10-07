@@ -103,7 +103,8 @@ void Blockchain::storeToFile(std::ofstream &file) {
             uint16_t GPSH = std::get<5>(tuple);
             uint16_t batteryO = std::get<6>(tuple);
             uint16_t batteryH = std::get<7>(tuple);
-                
+            
+            
             // write elements
             file << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH << std::endl;
         }
@@ -114,6 +115,7 @@ void Blockchain::storeToFile(std::ofstream &file) {
     } else {
         cerr << "Unable to open file for writing.\n";
     }
+    
 }
 
 

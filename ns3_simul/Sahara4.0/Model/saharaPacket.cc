@@ -1,6 +1,8 @@
 #include "saharaPacket.h"
 #include "ns3/address-utils.h"
 #include "ns3/packet.h"
+#include <iomanip>
+
 
 namespace ns3
 {
@@ -50,10 +52,11 @@ namespace ns3
                 return (1+4+ (m_missing_tuples.size()*20));
                 break;
 
-            case SEND_MISSING_P2C:
+           case SEND_MISSING_P2C:
                 NS_LOG_DEBUG("Get serialize size SEND_MISSING_P2C");
-                return (1+4+ (m_missing_tuples.size()*20)); // 1 byte for msgType, 4 for the childIP, then size of missing tuples and then size of the bloom filter and then BF                 break;
+                return (1 + 4 + 2 + (m_missing_tuples.size() * 20)); // 1 byte msgType, 4 bytes parentIP, 2 bytes count
                 break;
+
 
             case SR_HELLO:
                 NS_LOG_DEBUG("Get serialize size SR_HELLO");
@@ -69,16 +72,26 @@ namespace ns3
                 break;
 
             case ASK_BF:
-                return 1+4+4+m_bloomFilter.size()/8; // 1 is msg type, ip of the sender, then size of BF and then BF
+                return 1+4+4+4+(m_bloomFilter.size()+7)/8; // 1 is msg type, ip of the sender, then size of BF and then BF
                 break;
 
             case SEND_BF:
                 return 1+4+m_bloomFilter.size()/8; // 1 msg type, 4 is the bf lenght, and then bf
                 break; 
+
             case ENCRYPTED:
                 if(m_encryptedSize == 0) NS_ASSERT("encrypted packet size was not set");
                 return m_encryptedSize;
                 break;
+            
+            case ASK_BF_P2C:
+                return 1+4+4 ; // 1 is msg type, ip of the sender, size BF parent
+                break;
+            case SEND_BF_C2P:
+                return 1+4+4+(m_bloomFilter.size()+7)/8; // 1 is msg type, ip of the sender, then size of BF and then BF
+                break;
+
+
 
         }
        
@@ -133,20 +146,23 @@ namespace ns3
                     break;
 
             case SEND_MISSING_P2C:
-                    NS_LOG_DEBUG("SEND_MISSING_P2C serializing...");
-                    WriteTo(i, m_parentIP);
-                    
-                    for(const auto & t: m_missing_tuples){
-                        WriteTo(i, std::get<0>(t));
-                        WriteTo(i, std::get<1>(t));
-                        i.WriteU16(std::get<2>(t));
-                        i.WriteU16(std::get<3>(t));
-                        i.WriteU16(std::get<4>(t));
-                        i.WriteU16(std::get<5>(t));
-                        i.WriteU16(std::get<6>(t));
-                        i.WriteU16(std::get<7>(t));
-                    }                
-                    break;
+                        NS_LOG_DEBUG("SEND_MISSING_P2C serializing...");
+                        WriteTo(i, m_parentIP);
+                        i.WriteU16(m_missing_tuples.size()); // Write the count of tuples
+                        NS_LOG_DEBUG("Serializing " << m_missing_tuples.size() << " missing tuples");
+                        for (const auto& t : m_missing_tuples) {
+                            // Serialize each field
+                            WriteTo(i, std::get<0>(t));
+                            WriteTo(i, std::get<1>(t));
+                            i.WriteU16(std::get<2>(t));
+                            i.WriteU16(std::get<3>(t));
+                            i.WriteU16(std::get<4>(t));
+                            i.WriteU16(std::get<5>(t));
+                            i.WriteU16(std::get<6>(t));
+                            i.WriteU16(std::get<7>(t));
+                        }
+                        break;
+
             case SR_HELLO:
 
                     WriteTo(i, m_originIP);
@@ -167,19 +183,28 @@ namespace ns3
                 WriteTo(i, m_originIP);
                 break;
             
-            case ASK_BF:
+           case ASK_BF:
                 NS_LOG_DEBUG("[SERIALIZING ASK BF]");
                 WriteTo(i, m_originIP);
                 i.WriteU16(m_bloomFilter.size());
+                NS_LOG_DEBUG("Size of Bloom Filter (bits): " << m_bloomFilter.size());
+
+                i.WriteU16(m_rtDim);
                 byteCount = (m_bloomFilter.size() + 7) / 8;
-                byteVector.resize(byteCount);
-                    for (size_t i = 0; i < m_bloomFilter.size(); ++i) {
-                        if (m_bloomFilter[i]) {
-                            byteVector[i / 8] |= (1 << (i % 8)); // Set the corresponding bit in the byte
-                        }
+                byteVector.resize(byteCount, 0); // Inizializza a zero
+
+                for (size_t i = 0; i < m_bloomFilter.size(); ++i) {
+                    if (m_bloomFilter[i]) {
+                        byteVector[i / 8] |= (1 << (i % 8));
                     }
-                    i.Write(&byteVector[0], byteVector.size());
+                }
+
+                i.Write(&byteVector[0], byteVector.size());
+                NS_LOG_DEBUG("[byteVectorSize]: " << byteVector.size() << " ByteCount: " << byteCount);
+                NS_LOG_DEBUG("[END SERIALIZING ASK BF]");
                 break;
+
+
             case SEND_BF:
                 i.WriteU16(m_bloomFilter.size());
                 byteCount = (m_bloomFilter.size() + 7) / 8;
@@ -191,6 +216,33 @@ namespace ns3
                     }
                     i.Write(&byteVector[0], byteVector.size());
                 break;
+            
+            case ASK_BF_P2C:
+                WriteTo(i, m_originIP);
+                i.WriteU16(m_rtDim);
+                break;
+            
+            case SEND_BF_C2P:
+                NS_LOG_DEBUG("[SERIALIZING SEND BF C2P]");
+                WriteTo(i, m_originIP);
+                i.WriteU16(m_bloomFilter.size());
+                NS_LOG_DEBUG("Size of Bloom Filter (bits): " << m_bloomFilter.size());
+
+                byteCount = (m_bloomFilter.size() + 7) / 8;
+                byteVector.resize(byteCount, 0); // Inizializza a zero
+
+                for (size_t i = 0; i < m_bloomFilter.size(); ++i) {
+                    if (m_bloomFilter[i]) {
+                        byteVector[i / 8] |= (1 << (i % 8));
+                    }
+                }
+
+                i.Write(&byteVector[0], byteVector.size());
+                NS_LOG_DEBUG("[byteVectorSize]: " << byteVector.size() << " ByteCount: " << byteCount);
+                NS_LOG_DEBUG("[END SERIALIZING ASK BF]");
+                break;
+
+                
             
 
         }
@@ -231,7 +283,7 @@ namespace ns3
 
         case SEND_MISSING_C2P:
             ReadFrom(i, m_childIP);
-            while(i.GetRemainingSize() > 0){
+            while(i.GetRemainingSize() >= 20){ // Ensure there are at least 20 bytes left
                 ReadFrom(i, m_originIP);
                 ReadFrom(i, m_hop1IP);
                 m_reputation_O = i.ReadU16();
@@ -242,15 +294,23 @@ namespace ns3
                 m_battery_H = i.ReadU16();
                 m_missing_tuples.push_back(std::make_tuple(m_originIP, m_hop1IP, m_reputation_O, m_reputation_H, m_GPS_O, m_GPS_H, m_battery_O, m_battery_H));
             }
+
 
             dist = i.GetDistanceFrom(start);
             NS_ASSERT(dist == GetSerializedSize());
             return dist;
             break;
         
-        case SEND_MISSING_P2C:
+       case SEND_MISSING_P2C:
+       {
             ReadFrom(i, m_parentIP);
-            while(i.GetRemainingSize() > 0){
+            uint16_t tupleCount = i.ReadU16(); // Read the count of tuples
+            NS_LOG_DEBUG("Deserializing " << tupleCount << " missing tuples");
+            for (uint16_t idx = 0; idx < tupleCount; ++idx) {
+                if (i.GetRemainingSize() < 20) {
+                    NS_LOG_ERROR("Not enough data to read a tuple. Remaining size: " << i.GetRemainingSize());
+                    break;
+                }
                 ReadFrom(i, m_originIP);
                 ReadFrom(i, m_hop1IP);
                 m_reputation_O = i.ReadU16();
@@ -259,13 +319,17 @@ namespace ns3
                 m_GPS_H = i.ReadU16();
                 m_battery_O = i.ReadU16();
                 m_battery_H = i.ReadU16();
-                m_missing_tuples.push_back(std::make_tuple(m_originIP, m_hop1IP, m_reputation_O, m_reputation_H, m_GPS_O, m_GPS_H, m_battery_O, m_battery_H));
+                m_missing_tuples.push_back(std::make_tuple(
+                    m_originIP, m_hop1IP, m_reputation_O, m_reputation_H,
+                    m_GPS_O, m_GPS_H, m_battery_O, m_battery_H));
             }
-
             dist = i.GetDistanceFrom(start);
             NS_ASSERT(dist == GetSerializedSize());
             return dist;
             break;
+       }
+
+
          case SR_HELLO:
             NS_LOG_DEBUG("Deserialize NEW ACK");
             ReadFrom(i, m_originIP);
@@ -296,23 +360,30 @@ namespace ns3
             return dist;
             break;
         case ASK_BF:
+           
+
             m_bloomFilter.clear();
             ReadFrom(i, m_originIP);
+             NS_LOG_DEBUG("Deserialize BF FROM " << m_originIP);
             sizeBF = i.ReadU16();
+            m_rtDim = i.ReadU16();
             count = 0;
-            while (i.GetRemainingSize() > 0)
-            {
+            while (i.GetRemainingSize() > 0 && count < sizeBF) {
                 uint8_t byte = i.ReadU8();
-                for (int j = 0; j < 8; ++j)
-                {      
-                    if(count >= sizeBF) {continue;}
-                    bool bit = byte & (1 << j); // Extract the j-th bit from the byte
-                    m_bloomFilter.push_back(bit); // Add the bit to the vector
+                for (int j = 0; j < 8; ++j) {
+                    if(count >= sizeBF) { break; }
+                    bool bit = byte & (1 << j);
+                    m_bloomFilter.push_back(bit);
                     count++;
-                        
                 }
             }
+
+
             dist = i.GetDistanceFrom(start);
+            NS_LOG_DEBUG("Size of Bloom Filter (bits): " << m_bloomFilter.size());
+
+
+                   
             return dist;
             break;
         case SEND_BF:
@@ -324,7 +395,7 @@ namespace ns3
                 uint8_t byte = i.ReadU8();
                 for (int j = 0; j < 8; ++j)
                 {      
-                    if(count >= sizeBF) {continue;}
+                    if(count >= sizeBF) {break;}
                     bool bit = byte & (1 << j); // Extract the j-th bit from the byte
                     m_bloomFilter.push_back(bit); // Add the bit to the vector
                     count++;
@@ -332,8 +403,42 @@ namespace ns3
                 }
             }
             dist = i.GetDistanceFrom(start);
+
             return dist;
             break;
+        
+        case ASK_BF_P2C:
+            ReadFrom(i, m_originIP);
+            m_rtDim = i.ReadU16();
+            dist = i.GetDistanceFrom(start);
+            return dist;
+            break;
+        
+        case SEND_BF_C2P:
+            m_bloomFilter.clear();
+            ReadFrom(i, m_originIP);
+             NS_LOG_DEBUG("Deserialize BF FROM " << m_originIP);
+            sizeBF = i.ReadU16();
+            count = 0;
+            while (i.GetRemainingSize() > 0 && count < sizeBF) {
+                uint8_t byte = i.ReadU8();
+                for (int j = 0; j < 8; ++j) {
+                    if(count >= sizeBF) { break; }
+                    bool bit = byte & (1 << j);
+                    m_bloomFilter.push_back(bit);
+                    count++;
+                }
+            }
+
+
+            dist = i.GetDistanceFrom(start);
+            NS_LOG_DEBUG("Size of Bloom Filter (bits): " << m_bloomFilter.size());
+
+
+                   
+            return dist;
+            break;
+
 
 
         }
@@ -393,6 +498,11 @@ namespace ns3
     uint16_t
     SaharaHeader::GetSizeBF(){
         return sizeBF;
+    }
+
+    uint16_t
+    SaharaHeader::GetRTdim(){
+        return m_rtDim;
     }
 
     std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>>
@@ -458,6 +568,9 @@ namespace ns3
         
         void SaharaHeader::SetMissingTuples(std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> missingTuples){
             m_missing_tuples = missingTuples;
+        }
+        void SaharaHeader::SetRTDim(uint16_t dim){
+            m_rtDim = dim;
         }
         
      

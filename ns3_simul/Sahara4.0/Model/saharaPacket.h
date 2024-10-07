@@ -47,7 +47,10 @@ class SaharaHeader : public Header
         SEND_MISSING_P2C_ACK = 6, // child confirms with an ack to have received missing tuples from parent 
         ASK_BF = 7, // child asks to parent his bloom filter 
         SEND_BF = 8, // parent sends its bloom filter to child
-        ENCRYPTED = 9
+        ENCRYPTED = 9,
+        // these two below are only used for the Sahara SR Dynamic
+        ASK_BF_P2C = 10,
+        SEND_BF_C2P = 11
 
     };
 
@@ -88,6 +91,7 @@ class SaharaHeader : public Header
     void SetReputation_H(uint16_t rep);
     void SetGPS_H(uint16_t gps);
     void SetBattery_H(uint16_t bat);
+    void SetRTDim(uint16_t rtDim); // number of tuples
 
     // this is for message encryption
     void SetEncryptedPacketSize(u_int32_t encrSize);
@@ -113,7 +117,7 @@ class SaharaHeader : public Header
     Ipv4Address GetParentIP();
     uint16_t GetSizeBF();
     std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> GetMissingTuples();
-   
+    uint16_t GetRTdim();
 
   private:
     Ipv4Address m_originIP;
@@ -130,6 +134,7 @@ class SaharaHeader : public Header
     std::vector<bool> m_bloomFilter;
     u_int16_t sizeBF;
     std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> m_missing_tuples;
+    u_int16_t m_rtDim;
 
     // encryption
     uint32_t m_encryptedSize = 0;

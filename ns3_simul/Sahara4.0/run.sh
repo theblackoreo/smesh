@@ -51,7 +51,13 @@ cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaSecurity.h /home/para
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaSecurity.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/nodeCompromizedTest.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
-cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/nodeCompromizedTest.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/circleCompromizedTest.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
+
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/routingTableNew.h /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/routingTableNew.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
+
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/globalData.h /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/globalData.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 
 cd /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/
 

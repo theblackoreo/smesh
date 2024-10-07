@@ -160,7 +160,7 @@ void sendMessage(Ptr<Socket> socket, uint16_t port){
       Ptr<Packet> packet = Create<Packet>(1024);
       //NS_LOG_UNCOND("Sent ID = " << packet->GetUid());
      
-      // Send the packet in broadcast
+      // Send the packet 
       if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address("10.1.1.24"), port)) != -1) {
         msgSent = Simulator::Now().GetSeconds();
         mapMsgSent[packet->GetUid()] = msgSent;
