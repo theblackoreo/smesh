@@ -99,6 +99,23 @@ namespace ns3
     return true;
 }
 
+    void RoutingTable::AddEvaluatorVotes(const Ipv4Address& evaluatorIP, ns3::sahara::SaharaHeader::VotePacket votePacket) {
+        m_globalVotes[evaluatorIP] = votePacket;
+    }
+
+    void RoutingTable::AddReceivedMissingVotePackets(std::vector<ns3::sahara::SaharaHeader::VotePacket> listVotePackets){
+
+        for(const auto& t : listVotePackets){
+            m_globalVotes[t.evaluatorIP] = t;
+           
+        }
+        NS_LOG_DEBUG(m_myNodeID << ": VOTES ADDED (RECEIVED BY CHILD)");
+       
+    }
+
+
+   
+
     
         
     std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>
@@ -153,6 +170,7 @@ namespace ns3
         uint16_t port4 = std::get<5>(tup);
         uint16_t port5 = std::get<6>(tup);
         uint16_t port6 = std::get<7>(tup);
+       
 
         // Convert tuple elements to strings or bytes (as needed)
         std::ostringstream oss;
@@ -199,8 +217,8 @@ namespace ns3
      }
 
      std::vector<bool>
-     RoutingTable::GetDynamicBloomFilterIfActive(uint16_t sizeRTSender){
-        CreateDynamicBloomFilter(sizeRTSender);
+     RoutingTable::GetDynamicBloomFilterIfActive(uint16_t sizeRTSender, bool isForward){
+        CreateDynamicBloomFilter(sizeRTSender, isForward);
        
         return m_bloomFilter;
      }
@@ -224,7 +242,7 @@ namespace ns3
     std::vector<bool> bitArray(m_optimalNumberBits, false);
 
     CryptoPP::byte digest[CryptoPP::SHA256::DIGESTSIZE];
-
+    
     for (const auto& t : m_tuples) {
         // Extract elements from the tuple
         Ipv4Address srcAddress = std::get<0>(t);
@@ -235,6 +253,11 @@ namespace ns3
         uint16_t port4 = std::get<5>(t);
         uint16_t port5 = std::get<6>(t);
         uint16_t port6 = std::get<7>(t);
+        /*
+        uint8_t port7 = static_cast<uint8_t>(std::get<8>(t));
+        uint8_t port8 = static_cast<uint8_t>(std::get<9>(t));
+        std::string port9 = std::get<10>(t);
+        */
 
         // Convert tuple elements to strings or bytes (as needed)
         std::ostringstream oss;
@@ -276,8 +299,15 @@ namespace ns3
 
 
 
-   void RoutingTable::CreateDynamicBloomFilter(uint16_t sizeRTsender) {
-    double partial = (m_num_hash_functions * (GetSizeRoutingTable() + sizeRTsender)) / log(1 - pow(m_probabilityFP, 1.0 / m_num_hash_functions));
+   void RoutingTable::CreateDynamicBloomFilter(uint16_t sizeRTsender, bool isForward) {
+    double partial;
+    if(!isForward){
+        partial = (m_num_hash_functions * (GetSizeRoutingTable() + sizeRTsender)) / log(1 - pow(m_probabilityFP, 1.0 / m_num_hash_functions));
+    }
+    else{
+        partial = (m_num_hash_functions * (sizeRTsender)) / log(1 - pow(m_probabilityFP, 1.0 / m_num_hash_functions));
+
+    }
     u_int32_t m_optimalNumberBitsDynamic = ceil(partial * (-1));
 
     //NS_LOG_DEBUG("Creating Dynamic Bloom filter of size: " << m_optimalNumberBitsDynamic);
@@ -300,6 +330,11 @@ namespace ns3
         uint16_t port4 = std::get<5>(t);
         uint16_t port5 = std::get<6>(t);
         uint16_t port6 = std::get<7>(t);
+        /*
+        uint8_t port7 = static_cast<uint8_t>(std::get<8>(t));
+        uint8_t port8 = static_cast<uint8_t>(std::get<9>(t));
+        std::string port9 = std::get<10>(t);
+        */
 
         // Convert tuple elements to strings or bytes (as needed)
         std::ostringstream oss;
@@ -356,40 +391,29 @@ namespace ns3
 
     }
 
-    void 
-    RoutingTable::RunDijkstraNew(Ipv4Address myAddress){
-    
+   
+    void RoutingTable::RunDijkstraNew(Ipv4Address myAddress){
     m_shortestPaths.clear();
 
     std::map<Ipv4Address, uint16_t> distances;
     std::map<Ipv4Address, Ipv4Address> previous;
     std::priority_queue<std::pair<uint16_t, Ipv4Address>, std::vector<std::pair<uint16_t, Ipv4Address>>, std::greater<std::pair<uint16_t, Ipv4Address>>> pq;
     std::map<Ipv4Address, std::vector<std::pair<Ipv4Address, uint16_t>>> topology; // nodeIP, vector of neighbors and cost
-   
 
-    
     // Initialize distances
     for (const auto& node : m_tuples) {
         Ipv4Address src = std::get<0>(node);
         Ipv4Address dest = std::get<1>(node);
-        uint16_t cost = (std::get<2>(node) + std::get<3>(node)) / 2;
-        //NS_LOG_DEBUG(src << " "<< dest << "cost: " << cost);
-
-
-        //
-            const Ipv4Address& originIP = std::get<0>(node);
-            const Ipv4Address& hop1IP = std::get<1>(node);
-            uint16_t repO = std::get<2>(node);
-            uint16_t repH = std::get<3>(node);
-            uint16_t GPSO = std::get<4>(node);
-            uint16_t GPSH = std::get<5>(node);
-            uint16_t batteryO = std::get<6>(node);
-            uint16_t batteryH = std::get<7>(node);
-                
-            // Print elements
-            //NS_LOG_DEBUG("Tuple: " << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH);
-        //
+        uint16_t repO = GetNodeReputation(src); 
+        uint16_t repH = GetNodeReputation(dest);
+        uint16_t GPSO = std::get<4>(node);
+        uint16_t GPSH = std::get<5>(node);
+        uint16_t batteryO = std::get<6>(node);
+        uint16_t batteryH = std::get<7>(node);
         
+        // Calcolare il "costo" in base alla reputazione inversa (più alta la reputazione, minore il costo)
+        uint16_t cost = (1000 / (repO + 1) + 1000 / (repH + 1)) / 2;  // Incremento 1 per evitare divisione per zero
+
         topology[src].emplace_back(dest, cost);
         topology[dest].emplace_back(src, cost);
 
@@ -401,53 +425,28 @@ namespace ns3
             distances[dest] = (dest == myAddress) ? 0 : UINT16_MAX;
             previous[dest] = Ipv4Address();
         }
-       
-    }
-    
-    for(const auto& node : distances){
-        //NS_LOG_DEBUG("Neighbor: "<< node.first << " distance: " << node.second);
     }
 
-    /*
-    for (const auto& pair : topology) {
-        std::cout << "IP: " << pair.first << std::endl;
-        for (const auto& vecPair : pair.second) {
-            std::cout << "  Negh: " << vecPair.first << ", AvgRep: " << vecPair.second << std::endl;
-        }
-    }
-    */
-    
-    //distances[myAddress] = 0;
     pq.emplace(0, myAddress);
 
-     // Dijkstra's algorithm
-   while (!pq.empty()) {
-    auto [currentDist, u] = pq.top();
-    pq.pop();
+    // Dijkstra's algorithm
+    while (!pq.empty()) {
+        auto [currentDist, u] = pq.top();
+        pq.pop();
 
-    //std::cout << "Processing Node: " << u << " with currentDist: " << currentDist << std::endl;
+        if (currentDist > distances[u]) continue;
 
-    if (currentDist > distances[u]) continue;
-
-    for (const auto& [v, weight] : topology[u]) {
-        //std::cout << "  Checking neighbor: " << v << " with edge weight: " << weight << std::endl;
-
-        uint16_t newDist = currentDist + weight;
-        //std::cout << "  Calculated newDist: " << newDist << " for neighbor: " << v << std::endl;
-
-        if (newDist < distances[v]) {
-            //std::cout << "  Updating distance for: " << v << " from " << distances[v] << " to " << newDist << std::endl;
-            distances[v] = newDist;
-            previous[v] = u;
-            pq.emplace(newDist, v);
+        for (const auto& [v, weight] : topology[u]) {
+            uint16_t newDist = currentDist + weight;
+            if (newDist < distances[v]) {
+                distances[v] = newDist;
+                previous[v] = u;
+                pq.emplace(newDist, v);
+            }
         }
     }
-}
 
-
-    //NS_LOG_DEBUG("Need to recontruct ");
-   // Reconstruct shortest paths
-   
+    // Reconstruct shortest paths
     for (const auto& [dest, dist] : distances) {
         if (dist == UINT16_MAX) {
             continue;
@@ -462,36 +461,23 @@ namespace ns3
         m_shortestPaths[dest] = path;
     }
 
-    for(const auto& [dest, path] : m_shortestPaths ){
+    for(const auto& [dest, path] : m_shortestPaths){
         if(checkExistenceOfNegh(dest, myAddress)){
             std::vector<Ipv4Address> path;
-             path.push_back(myAddress);
-             path.push_back(dest);
+            path.push_back(myAddress);
+            path.push_back(dest);
             m_shortestPaths[dest] = path;
         }
     }
+}
 
-    /*
-    // For debugging or further processing, print these paths
-    for (const auto& [dest, path] : m_shortestPaths) {
-        std::cout << "Path from " << myAddress << " to " << dest << "(Cost: " << distances[dest] << ")" << ": ";
-        for (const auto& node : path) {
-            std::cout << node << " ";
-        }
-        std::cout << std::endl;
-    }
-    */
-    
-    
-    
-
-    }
 
 
     void
     RoutingTable::RunDijkstra(Ipv4Address myAddress){
         
-
+       
+        
         RunDijkstraNew(myAddress);
         
     }
@@ -584,6 +570,11 @@ namespace ns3
         uint16_t port4 = std::get<5>(t);
         uint16_t port5 = std::get<6>(t);
         uint16_t port6 = std::get<7>(t);
+        /*
+        uint8_t port7 = static_cast<uint8_t>(std::get<8>(t));
+        uint8_t port8 = static_cast<uint8_t>(std::get<9>(t));
+        std::string port9 = std::get<10>(t);
+        */
 
         // Create a concatenated string of all elements in the tuple
         std::ostringstream oss;
@@ -661,6 +652,11 @@ bool RoutingTable::ProcessSetReconciliationDynamic(std::vector<bool> bfs) {
         uint16_t port4 = std::get<5>(t);
         uint16_t port5 = std::get<6>(t);
         uint16_t port6 = std::get<7>(t);
+        /*
+        uint8_t port7 = static_cast<uint8_t>(std::get<8>(t));
+        uint8_t port8 = static_cast<uint8_t>(std::get<9>(t));
+        std::string port9 = std::get<10>(t);
+        */
 
         // Create a concatenated string of all elements in the tuple
         std::ostringstream oss;
@@ -717,6 +713,8 @@ bool RoutingTable::ProcessSetReconciliationDynamic(std::vector<bool> bfs) {
     return true;
 }
 
+    
+
 
     std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> 
     RoutingTable::GetMissingTuples(){
@@ -725,15 +723,47 @@ bool RoutingTable::ProcessSetReconciliationDynamic(std::vector<bool> bfs) {
 
     void
     RoutingTable::UpdateFileHistory(){
-       m_blockchain.addBlock(m_tuples);
+        m_firstIT = false;
+       UpdateReputationLocally();
+       m_blockchain.addBlock(m_tuples, m_mapIDRep);
        m_blockchain.storeToFile(m_outputFile);
+       
 
 
     }
 
+    void RoutingTable::UpdateReputationLocally() {
+    std::map<Ipv4Address, int> counter;
+
+    for(const auto& it : m_globalVotes) {
+        const ns3::sahara::SaharaHeader::VotePacket& votePacket = it.second; 
+
+        for(const auto& vt : votePacket.votes) {
+            if(vt.vote == ns3::sahara::SaharaHeader::VoteState::Positive) {
+                counter[vt.EvaluatedIP]++;  
+            } else if(vt.vote == ns3::sahara::SaharaHeader::VoteState::Negative) {
+                counter[vt.EvaluatedIP]--; 
+            }
+        }
+    }
+
+    for(const auto& it : m_mapIDRep){
+        if(counter[it.first] < 0) {
+            m_mapIDRep[it.first] = m_mapIDRep[it.first] - 250;
+            std::cout << "DECREASED ON ROUTING TABLE REPUTATION OF " << it.first << " new: "<< m_mapIDRep[it.first] << std::endl;
+        }
+        else if(counter[it.first] > 0){
+            m_mapIDRep[it.first] = m_mapIDRep[it.first] + 1;
+            std::cout << "INCREASE ON ROUTING TABLE REPUTATION OF " << it.first << " new: "<< m_mapIDRep[it.first] << std::endl;
+        }
+    }
+}
+
+
+
     void
     RoutingTable::PrintAll(){
-        //NS_LOG_DEBUG("Printing routing table");
+        NS_LOG_DEBUG("Printing routing table");
         
         for (const auto& tuple : m_tuples) {
                 // Extract elements from the tuple
@@ -745,11 +775,16 @@ bool RoutingTable::ProcessSetReconciliationDynamic(std::vector<bool> bfs) {
             uint16_t GPSH = std::get<5>(tuple);
             uint16_t batteryO = std::get<6>(tuple);
             uint16_t batteryH = std::get<7>(tuple);
+            /*
+            int voteO = static_cast<int>(std::get<8>(tuple));
+            int voteH = static_cast<int>(std::get<9>(tuple));
+            std::string signature = std::get<10>(tuple);
+            */
                 
             // Print elements
-            //NS_LOG_DEBUG("Tuple: " << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH);
+            NS_LOG_DEBUG("Tuple: " << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH);
         }
-        //NS_LOG_DEBUG("End______________________________________");
+        NS_LOG_DEBUG("End______________________________________");
 
 
    
@@ -780,11 +815,151 @@ bool RoutingTable::ProcessSetReconciliationDynamic(std::vector<bool> bfs) {
         
         
     }
+    void 
+    RoutingTable::SetMyNodeID (uint16_t id){
+        m_myNodeID = id;
+    }
+
+    uint16_t
+    RoutingTable::GetMyNodeID(){
+        return m_myNodeID;
+    }
+
+    void 
+    RoutingTable::GenerateRepMap(){
+
+         for (const auto& t : m_tuples) {
+            m_mapIDRep[std::get<0>(t)] = std::get<2>(t);
+            m_mapIDRep[std::get<1>(t)] = std::get<3>(t);
+         }
+    }
+
+    uint16_t
+    RoutingTable::GetNodeReputation(Ipv4Address nodeIP){
+        
+        if(m_firstIT){
+            return 255; // max at beginning
+        }
+        else{
+            return m_mapIDRep[nodeIP];
+        }
+
+    }
+
+    std::map<Ipv4Address, uint16_t> 
+    RoutingTable::getMapIDRep(){
+        return m_mapIDRep;
+    }
+
+
+    std::vector<Ipv4Address> 
+    RoutingTable::GetVectOfNeigByIP(Ipv4Address nodeIP){
+         std::vector<Ipv4Address> neighIPs;
+    
+        for (const auto& tuple : m_tuples) {
+            Ipv4Address ip1 = std::get<0>(tuple);
+            Ipv4Address ip2 = std::get<1>(tuple);
+            
+            if (ip1 == nodeIP) {
+                neighIPs.push_back(ip2);
+            } else if (ip2 == nodeIP) {
+                neighIPs.push_back(ip1);
+            }
+        }
+        return neighIPs;
+    }
+
+
+
+     void RoutingTable::SetVotes(Ipv4Address evaluatorIP, sahara::SaharaHeader::VotePacket votePacket) {
+        m_votes = votePacket;
+        AddEvaluatorVotes(evaluatorIP, votePacket);
+    }
+
+
+  void RoutingTable::PrintVotes() {
+    for (const auto& entry : m_globalVotes) {
+        Ipv4Address evaluatorIP = entry.first;
+        const ns3::sahara::SaharaHeader::VotePacket& votePacket = entry.second;
+
+        // Print the evaluator's IP
+        std::cout << "Evaluator IP: " << evaluatorIP << std::endl;
+
+        // Print each vote in the votes list
+        for (const auto& vote : votePacket.votes) {
+            std::cout << "  Evaluated IP: " << vote.EvaluatedIP
+                      << ", Vote: " << static_cast<int>(vote.vote) << std::endl;
+        }
+
+        // Print the signature of the vote packet
+        std::cout << "Signature: " << votePacket.signature << std::endl;
+    }
+}
+
+
+    std::vector<Ipv4Address> 
+    RoutingTable::GetListVotesIP(){
+        std::vector<Ipv4Address> keyList;
+
+        for (const auto& pair : m_globalVotes) {
+            keyList.push_back(pair.first);
+        }
+
+        return keyList;
+    }
+
+    std::vector<ns3::sahara::SaharaHeader::VotePacket> 
+    RoutingTable::GetMissingVotePackets(std::vector<Ipv4Address> ipReceived) {
+
+    std::vector<ns3::sahara::SaharaHeader::VotePacket> missingForParent;
+
+    for (const auto& globalVotes : m_globalVotes) {
+        bool found = false;
+
+        for (const auto& ipRecv : ipReceived) {
+            if (ipRecv == globalVotes.first) { 
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            missingForParent.push_back(globalVotes.second);  
+        }
+    }
+
+    return missingForParent;
+}
+
+
+    
 
     void
     RoutingTable::ResetVariables(){
         m_tuples.clear();
-        std::fill(m_bloomFilter.begin(), m_bloomFilter.end(), false);
+
+        
+        //std::fill(m_bloomFilter.begin(), m_bloomFilter.end(), false);
+
+        // it works only for dynamic
+        m_bloomFilter.clear();
+
+        double partial = (m_nTuplesWorstCase * log(m_probabilityFP) ) / pow(log(2),2);
+        m_optimalNumberBits = ceil(partial*(-1));
+        m_bloomFilter.resize(m_optimalNumberBits);
+       
+
+       
+        m_distance.clear();
+        m_visited.clear();
+        m_previous.clear();
+        m_routes.clear();
+        m_senderTuplMissing.clear();
+        m_hashMap.clear();
+        m_shortestPaths.clear();
+        m_finalRound = true;
+        m_globalVotes.clear();
+        //m_votes.clear();
 
     }
 

@@ -113,7 +113,7 @@
 
       NS_LOG_DEBUG("[RecvPacket] Packet received TYPE -> " << sh.GetMessageType());
 
-      m_packets_processed = m_packets_processed + 1;
+     
       
       
       switch (sh.GetMessageType())
@@ -221,6 +221,8 @@
       ipv4Addr.Print(oss);
       std::string ip_string = oss.str();
 
+      m_ss.SetMyIP(ipv4Addr);
+
       size_t lastDotPos = ip_string.find_last_of('.');
 
       if (lastDotPos != std::string::npos) {
@@ -307,14 +309,12 @@
       m_auditTimeoutAckSRNEW.SetFunction(&SaharaRouting::NoChildrenNew,this);
       m_auditTimeoutAckInverseSR.SetFunction(&SaharaRouting::InverseSetRec, this);
       m_SR.SetFunction(&SaharaRouting::StartTopologyBuilding, this);
-
-      
       m_ackTimeoutAskToParentBF.SetFunction(&SaharaRouting::AskToParentBF, this);
       //m_ackTimeoutWaitMissingFromChild.SetFunction(&SaharaRouting::SendToChildBF, this);
 
       
 
-
+      // queue lenght on node 
       u_int32_t xxx = 100;
       m_queue.SetMaxQueueLen(xxx);
       m_queue.SetQueueTimeout(Seconds(50));
@@ -337,6 +337,7 @@
       std::string nodeIDString = std::to_string(m_intNodeID);
       std::string fileName = "historyRoutingTable_" + nodeIDString + ".txt";
       r_Table.SetFile(fileName);
+      r_Table.SetMyNodeID(m_intNodeID);
 
 
       if(m_flooding_ON){
@@ -353,7 +354,7 @@
         
         //Simulator::Schedule(MilliSeconds(12000), &SaharaRouting::StartTopologyBuilding, this);
 
-       Simulator::Schedule(MilliSeconds(27000+ m_intNodeID), &SaharaRouting::PrintStatistics, this);
+       Simulator::Schedule(MilliSeconds(50000+ m_intNodeID), &SaharaRouting::PrintStatistics, this);
 
         Simulator::Schedule(
     MilliSeconds(6000 + m_intNodeID),
@@ -495,8 +496,8 @@
       if(!GlobalData::IpAllowed(header.GetSource())) return true;
       if(!GlobalData::IpAllowed(header.GetDestination())) return true;
       
-      /*
-      if(m_nodeDeletePackets && m_IDcompromisedNode == m_intNodeID && Simulator::Now().GetSeconds() > 15 ){
+      
+      if(m_nodeDeletePackets && m_IDcompromisedNode == m_intNodeID && Simulator::Now().GetSeconds() > 15 && Simulator::Now().GetSeconds() < 28 ){
         ns3::Ptr<ns3::UniformRandomVariable> rng = ns3::CreateObject<ns3::UniformRandomVariable>();
         rng->SetAttribute("Min", ns3::DoubleValue(0.0));
         rng->SetAttribute("Max", ns3::DoubleValue(100.0));
@@ -505,7 +506,8 @@
           return false;
         }
       }
-      */
+      
+      m_packets_processed = m_packets_processed + 1;
       
       if(Simulator::Now().GetSeconds() > 12 && Simulator::Now().GetSeconds() < 25 && m_intNodeID == 9999){ // 9999 wrong
          ns3::Ptr<ns3::UniformRandomVariable> rng = ns3::CreateObject<ns3::UniformRandomVariable>();
@@ -748,6 +750,7 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
       NS_LOG_DEBUG("[Dijkstra] Entered");
 
       r_Table.RunDijkstra(m_mainAddress);
+      
 
       //r_Table.UpdateFileHistory();
         
@@ -848,10 +851,10 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
   void
   SaharaRouting::StartTopologyBuilding(){
 
-
-    GlobalData::ReadDataFromFile(m_intNodeID, m_rep, m_gps, m_bat);
     // 1) send BF to neighbors in broadcast and wait ack
-      
+    
+      // reset all routing tables variables and also all routing varibles
+
       if(m_intNodeID == 12){ // this is only to test (node 12 is the root), but in the real case the node with highest rep and lower id will start
 
         if(!m_reset){
@@ -870,12 +873,39 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
         sh.SetOriginIP(m_mainAddress);
 
         GlobalData::ReadDataFromFile(m_intNodeID, m_rep, m_gps, m_bat);
+      
+        
+          sh.SetReputation_O(r_Table.GetNodeReputation(m_mainAddress));
+        
 
-        sh.SetReputation_O(m_rep);
         sh.SetGPS_O(m_gps);
         sh.SetBattery_O(m_bat);
+       
+
+        SaharaHeader::VotePacket myVTlist = m_ss.GetMyVotesList();
+        
+         std::cout << "EvaluatorIP: " << myVTlist.evaluatorIP << std::endl;
+        std::cout << "Votes: " << std::endl;
+        for (const auto& vote : myVTlist.votes) {
+           std::cout << "EvaluatedIP " << vote.EvaluatedIP << " Vote " << std::endl;
+        } 
+        std::cout << "Signature: " << myVTlist.signature << std::endl;
+
+        sh.SetVotes(m_ss.GetMyVotesList());
+
+       
+
+
+        
+        
+
+       
+
+        //sh.SetVote_O(SaharaHeader::VoteState::Undefined);
+        //sh.SetSign_O("ms49U12luTGuWlIKuCOi1Ar3u6xy82kMQPPyXY4hoTPOUhPF");
 
         //NS_LOG_DEBUG ("[SendHello] Sending Hello " << m_mainAddress << ", " << Ipv4Address("0.0.0.0") << ", " << m_intNodeID << ", " << init << ", " << init);    
+
 
         packet->AddHeader(sh);
        
@@ -896,7 +926,7 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
 
      if(!m_reset){
           ResetVariablesUpdate();
-        }
+      }
     
     GlobalData::ReadDataFromFile(m_intNodeID, m_rep, m_gps, m_bat);
 
@@ -905,7 +935,16 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
     uint16_t GPS_O = sh.GetGPS_O();
     uint16_t battery_O = sh.GetBattery_O();
 
+    SaharaHeader::VoteState vote_O = sh.GetVote_O();
+    //std::string sign_O = sh.GetSign_O();
+
+    r_Table.SetVotes(originIP, sh.GetVotes());
+    
+    
+   
+
     NS_LOG_DEBUG(m_intNodeID << "-> [ProcessRootHello] received hello from parent: " << originIP);
+
 
     // set node's parent
     m_parentIP = originIP;
@@ -916,9 +955,17 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
     shAck.SetOriginIP(m_mainAddress);
     shAck.SetParentIP(m_parentIP);
 
-    shAck.SetReputation_O(m_rep);
+   
+    shAck.SetReputation_O(r_Table.GetNodeReputation(m_mainAddress));
+  
     shAck.SetGPS_O(m_gps);
     shAck.SetBattery_O(m_bat);
+
+    // set vote and signatures
+    //shAck.SetVote_O(m_ss.GetVoteByNodeIP(m_parentIP));
+    //shAck.SetSign_O("parent2luTGuWlIKuCOi1Ar3u6xy82kMQPPyXY4hoTPOUhPF");
+
+    //r_Table.AddVote(m_parentIP, m_mainAddress, m_ss.GetVoteByNodeIP(m_parentIP), "parent2luTGuWlIKuCOi1Ar3u6xy82kMQPPyXY4hoTPOUhPF");
 
     //SaharaHeader(m_mainAddress, true);
     Ptr<Packet> ackPacket = Create<Packet>();
@@ -927,7 +974,9 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
     m_auditTimeoutAckSRNEW.Schedule(MilliSeconds(m_ackTimeSlot + 10*static_cast<double>(m_intNodeID))); // ACTIVATE LATER
     Simulator::Schedule(MilliSeconds(2*m_intNodeID), &SaharaRouting::BroadcastPacket, this, ackPacket);  
     
-    r_Table.AddTuple(originIP, m_mainAddress, reputation_O, m_rep, GPS_O, m_gps, battery_O, m_bat);
+   
+    r_Table.AddTuple(originIP, m_mainAddress, reputation_O, r_Table.GetNodeReputation(m_mainAddress), GPS_O, m_gps, battery_O, m_bat);
+    
 
   }
 
@@ -937,6 +986,7 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
      if(!m_reset){
           ResetVariablesUpdate();
         }
+
     GlobalData::ReadDataFromFile(m_intNodeID, m_rep, m_gps, m_bat);
     NS_LOG_DEBUG(m_intNodeID << " -> [ProcessSRHello] received data from: " << sh.GetOriginIP());
 
@@ -950,9 +1000,15 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
         // add child to list of children
         m_listSetRecDone[sh.GetOriginIP()] = false;
 
+
+        r_Table.SetVotes(sh.GetOriginIP(), sh.GetVotes());
+
+        //r_Table.AddVote(m_mainAddress, sh.GetOriginIP(), sh.GetVote_O(), sh.GetSign_O());
+
+
         // add a tuple containing my info and the list of sender nodes -> it creates a pair
         
-        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_rep, sh.GetReputation_O(), m_gps, sh.GetGPS_O(), m_bat, sh.GetBattery_O());
+        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), r_Table.GetNodeReputation(m_mainAddress), sh.GetReputation_O(), m_gps, sh.GetGPS_O(), m_bat, sh.GetBattery_O());
 
      }
      // in this case I've not the parent, so it means the sender is my parent
@@ -963,9 +1019,15 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
         // set sender as my parent
         m_parentIP = sh.GetOriginIP();
 
+        r_Table.SetVotes(sh.GetOriginIP(), sh.GetVotes());
+
         // add a tuple containing my info + parent info -> create a tuple
+
+        //r_Table.AddVote(sh.GetOriginIP(), sh.GetParentIP(), sh.GetVote_O(), sh.GetSign_O());
+
+        //r_Table.AddVote(m_mainAddress, sh.GetOriginIP(), m_ss.GetVoteByNodeIP(sh.GetOriginIP()), "CHILDt2luTGuWlIKuCOi1Ar3u6xy82kMQPPyXY4hoTPOUhPF");
        
-        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_rep, sh.GetReputation_O(), m_gps, sh.GetGPS_O(), m_bat, sh.GetBattery_O());
+        r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), r_Table.GetNodeReputation(m_mainAddress), sh.GetReputation_O(), m_gps, sh.GetGPS_O(), m_bat, sh.GetBattery_O());
           
 
         SendDataNew();
@@ -976,9 +1038,15 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
         
         NS_LOG_DEBUG(m_intNodeID << " -> [ProcessSRHello]: Already have a parent");
 
+        r_Table.SetVotes(sh.GetOriginIP(), sh.GetVotes());
+
          // add a tuple containing my info + parent info -> create a tuple
+
+         //r_Table.AddVote(sh.GetOriginIP(), sh.GetParentIP(), sh.GetVote_O(), sh.GetSign_O());
+
+         //r_Table.AddVote(m_mainAddress, sh.GetOriginIP(), m_ss.GetVoteByNodeIP(sh.GetOriginIP()), "CHILDw2luTGuWlIKuCOi1Ar3u6xy82kMQPPyXY4hoTPOUhPF");
          
-         r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), m_rep, sh.GetReputation_O(), m_gps, sh.GetGPS_O(), m_bat, sh.GetBattery_O());
+         r_Table.AddTuple(m_mainAddress, sh.GetOriginIP(), r_Table.GetNodeReputation(m_mainAddress), sh.GetReputation_O(), m_gps, sh.GetGPS_O(), m_bat, sh.GetBattery_O());
             
      }
 
@@ -990,6 +1058,7 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
       
       // run diskra on partial table to give a route to neighbors even if the connection is direct this step is mandatory
       r_Table.RunDijkstra(m_mainAddress);
+      
 
       // root node -> 12 is for example
       if(m_intNodeID==12){
@@ -1012,6 +1081,8 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
 
       // ask to parent the bloom filter and continue the procedure
       AskToParentBF();
+
+      
      
     }
 
@@ -1044,34 +1115,34 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
 
     }
 
-    void SaharaRouting::SendToChildBF(SaharaHeader sh) {
+   
+  void SaharaRouting::SendToChildBF(SaharaHeader sh) {
     // Check if we are currently processing a child request
     if (m_previousChildProcessed) {
-        // Mark that we are now processing a request
         m_previousChildProcessed = false;
 
-        // Update routing table (optional)
+        // Update routing table
         r_Table.RunDijkstra(m_mainAddress); 
 
         NS_LOG_DEBUG(m_intNodeID << ", [SendToChildBF], received askBF from -> " << sh.GetOriginIP() 
                      << ", SIZE CHILD RT: " << sh.GetRTdim());
 
-        // Store the Bloom filter received from the child
+        // Store Bloom Filter received from the child
         m_listBFChildren[sh.GetOriginIP()] = sh.GetBloomFilter();
-             NS_LOG_DEBUG(m_intNodeID << "BF OF CHILD " << sh.GetOriginIP());
-         
+        NS_LOG_DEBUG(m_intNodeID << "BF OF CHILD " << sh.GetOriginIP());
 
-
-        // Prepare the response Bloom filter
+        // Prepare response Bloom Filter
         SaharaHeader ack;
         ack.SetMessageType(sahara::SaharaHeader::SEND_BF);
+        if (m_sr_dynamic_ON) {
+            ack.SetBF(r_Table.GetDynamicBloomFilterIfActive(sh.GetRTdim(), false));
+            
+        } else {
+            ack.SetBF(r_Table.GetBloomFilter());
+        }
 
-        if(m_sr_dynamic_ON) {
-          ack.SetBF(r_Table.GetDynamicBloomFilterIfActive(sh.GetRTdim())); // Generate the BF to send to the child
-        }
-        else {
-          ack.SetBF(r_Table.GetBloomFilter());
-        }
+        // send already known evaluator votes (send only evaluator IP)
+        ack.SetListVotesIP(r_Table.GetListVotesIP());
 
         // Create and send the packet
         Ptr<Packet> packet = Create<Packet>();
@@ -1079,33 +1150,48 @@ SaharaRouting::ProcessHello(SaharaHeader sh) {
 
         Simulator::Schedule(MilliSeconds(5 * m_intNodeID), &SaharaRouting::SendPacketToDest, this, packet, sh.GetOriginIP());
 
-        
-
     } else {
-        // If the parent is busy, enqueue the current request
-        NS_LOG_DEBUG(m_intNodeID << ", [SendToChildBF], parent is busy, enqueuing request from -> " << sh.GetOriginIP());
-        m_childRequestQueue.push(sh);
+        // Parent is busy, check if the same request is already in the queue to avoid duplicates
+        if (!IsAlreadyEnqueued(sh)) {
+            NS_LOG_DEBUG(m_intNodeID << ", [SendToChildBF], parent is busy, enqueuing request from -> " << sh.GetOriginIP());
+            m_childRequestQueue.push(sh);
+        }
     }
 }
+
+bool SaharaRouting::IsAlreadyEnqueued(SaharaHeader sh) {
+    // Create a copy of the queue to iterate over
+    std::queue<SaharaHeader> tempQueue = m_childRequestQueue;
+
+    while (!tempQueue.empty()) {
+        SaharaHeader queued_sh = tempQueue.front();
+        tempQueue.pop();
+        if (queued_sh.GetOriginIP() == sh.GetOriginIP()) {
+            return true;  // Request already enqueued
+        }
+    }
+    return false;
+}
+
 
 void SaharaRouting::OnChildResponseReceived() {
     // Mark that the previous child request has been processed
     m_previousChildProcessed = true;
 
-    // Check if there are more requests in the queue
+    // Process next request if there is one in the queue
     if (!m_childRequestQueue.empty()) {
-        // Dequeue the next request and process it
         SaharaHeader nextRequest = m_childRequestQueue.front();
         m_childRequestQueue.pop();
 
         NS_LOG_DEBUG(m_intNodeID << ", [OnChildResponseReceived], processing next child request from -> " << nextRequest.GetOriginIP());
 
+        // Re-process next request
         SendToChildBF(nextRequest);
     } else {
         NS_LOG_DEBUG(m_intNodeID << ", [OnChildResponseReceived], no more requests in the queue.");
-
     }
 }
+
 
     // after asked the BF of the parent, child can now evaluate parent's missing tuples
     void
@@ -1117,6 +1203,10 @@ void SaharaRouting::OnChildResponseReceived() {
       // retreive BF of the parent
       m_parentBF = sh.GetBloomFilter();
 
+      //std::vector<Ipv4Address> lisIP = sh.GetListVotesIP();
+   
+
+
       r_Table.ProcessSetReconciliationDynamic(m_parentBF); // TO IMPLEMENT BOOL SWITCH
 
       // send missing tuples to parent
@@ -1126,6 +1216,12 @@ void SaharaRouting::OnChildResponseReceived() {
       shm.SetChildIP(m_mainAddress);
       
       shm.SetMissingTuples(r_Table.GetMissingTuples());
+
+      // add missing tuples votes
+      shm.SetMissingVotePackets(r_Table.GetMissingVotePackets(sh.GetListVotesIP())); //
+
+
+
       packet->AddHeader(shm);
       
       NS_LOG_DEBUG(m_intNodeID << ", [ReceivedFromParentBF], sending missing tuples to parent -> " << m_parentIP);
@@ -1156,6 +1252,12 @@ void SaharaRouting::OnChildResponseReceived() {
             uint16_t GPSH = std::get<5>(tuple);
             uint16_t batteryO = std::get<6>(tuple);
             uint16_t batteryH = std::get<7>(tuple);
+            /*
+            SaharaHeader::VoteState voteO =  static_cast<SaharaHeader::VoteState>(std::get<8>(tuple));
+            SaharaHeader::VoteState voteH =  static_cast<SaharaHeader::VoteState>(std::get<9>(tuple));
+            std::string signature = std::get<10>(tuple);
+            */
+
             r_Table.AddTuple(originIP, hop1IP, repO, repH, GPSO, GPSH, batteryO, batteryH);
             
             //std::cout <<  "ADD TUPLE CALLED ProcessReceivedMissing : my address " << originIP << "rep " << repO << " origin address " << hop1IP  << "rep add " << repH<< std::endl;
@@ -1164,13 +1266,17 @@ void SaharaRouting::OnChildResponseReceived() {
             // Print elements
            // NS_LOG_DEBUG("Tuple Missing in my node: " << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH);
         }
-        NS_LOG_DEBUG("End______________________________________");
+       
         
         }
         
         // Every parent node receives own missing tuples from every child either if a child doesn't have children or if a child has completed SR with sub-children
 
         // Every parent checks if there are still children that have not sent missing tuples
+
+        // now store missing votes received by the child
+        r_Table.AddReceivedMissingVotePackets(sh.GetMissingVotePackets());
+       
 
         m_listSetRecDone[sh.GetChildIP()] = true;
         
@@ -1216,12 +1322,24 @@ void SaharaRouting::OnChildResponseReceived() {
         m_SRCompleted = true;
         NS_LOG_DEBUG(m_intNodeID << " -> No children, END SET RECONCILIATION FOR THIS NODE");
         
-        r_Table.UpdateFileHistory();
-        m_reset = false;
-        Dijkstra();
+        
+       
+       
+       
+        
+        r_Table.GenerateRepMap();
+         r_Table.UpdateFileHistory();
+          Dijkstra();
         m_ss.LoadMacIdMap();
+        m_ss.LoadLastBlock();
+        NS_LOG_DEBUG(m_intNodeID << " VOTES AFTER SET RECONCILIATION");
+        r_Table.PrintVotes();
+         m_reset = false;
+
         //r_Table.SetAllTupleFalse();
         PrintAllInfo(); 
+
+      
         GlobalData::UpdateAllowedIPs();
          
         
@@ -1245,6 +1363,8 @@ void SaharaRouting::OnChildResponseReceived() {
             sh.SetParentIP(m_mainAddress);
             r_Table.ProcessSetReconciliation(t.second);
             sh.SetMissingTuples(r_Table.GetMissingTuples());
+            
+
             Ptr<Packet> packet = Create<Packet>();
             packet->AddHeader(sh);
             // start ack timer
@@ -1263,18 +1383,23 @@ void SaharaRouting::OnChildResponseReceived() {
         }
       }
 
-      if(!m_alreadyDone){
+      if(!m_alreadyDone and !m_SRCompleted){
         NS_LOG_DEBUG(m_intNodeID << ", [SET RECONCILIATION] TERMINATED SUCCESSFULLY]");
+       
+        r_Table.GenerateRepMap();
         r_Table.UpdateFileHistory();
         Dijkstra();
-        m_ss.LoadMacIdMap();
+          m_ss.LoadMacIdMap();
+        m_ss.LoadLastBlock();
+         NS_LOG_DEBUG(m_intNodeID << " VOTES AFTER SET RECONCILIATION");
+        r_Table.PrintVotes();
        // r_Table.SetAllTupleFalse();
         PrintAllInfo();
         // m_packets_processed = 0;
         // m_tot_byte_processed = 0;
         m_reset = false; 
         m_alreadyDone =  true;
-         GlobalData::UpdateAllowedIPs();
+        GlobalData::UpdateAllowedIPs();
 
         
       }
@@ -1299,7 +1424,11 @@ void SaharaRouting::OnChildResponseReceived() {
       SaharaHeader sh;
       sh.SetMessageType(sahara::SaharaHeader::SEND_BF_C2P);
       sh.SetOriginIP(m_mainAddress);
-      sh.SetBF(r_Table.GetDynamicBloomFilterIfActive(shReceived.GetRTdim()));
+      sh.SetBF(r_Table.GetDynamicBloomFilterIfActive(shReceived.GetRTdim(), true));
+
+      // need to send list of my ips where I already have votes
+      sh.SetListVotesIP(r_Table.GetListVotesIP());
+
 
       Ptr<Packet> packet = Create<Packet>();
       packet->AddHeader(sh);
@@ -1313,11 +1442,19 @@ void SaharaRouting::OnChildResponseReceived() {
         m_listBFChildren[shReceived.GetOriginIP()] = shReceived.GetBloomFilter();
         NS_LOG_DEBUG(m_intNodeID << "BF OF CHILD RECEIVED" << shReceived.GetOriginIP());
 
+         
+
         SaharaHeader sh;
             sh.SetMessageType(sahara::SaharaHeader::SEND_MISSING_P2C);
             sh.SetParentIP(m_mainAddress);
             r_Table.ProcessSetReconciliationDynamic(shReceived.GetBloomFilter());
             sh.SetMissingTuples(r_Table.GetMissingTuples());
+
+            // add missing tuples votes
+            sh.SetMissingVotePackets(r_Table.GetMissingVotePackets(shReceived.GetListVotesIP())); //
+
+            
+
             Ptr<Packet> packet = Create<Packet>();
             packet->AddHeader(sh);
             // start ack timer
@@ -1347,6 +1484,13 @@ void SaharaRouting::OnChildResponseReceived() {
             uint16_t GPSH = std::get<5>(tuple);
             uint16_t batteryO = std::get<6>(tuple);
             uint16_t batteryH = std::get<7>(tuple);
+            /*
+            SaharaHeader::VoteState voteO =  static_cast<SaharaHeader::VoteState>(std::get<8>(tuple));
+            SaharaHeader::VoteState voteH =  static_cast<SaharaHeader::VoteState>(std::get<9>(tuple));
+            std::string signature = std::get<10>(tuple);
+            */
+
+
             r_Table.AddTuple(originIP, hop1IP, repO, repH, GPSO, GPSH, batteryO, batteryH);
                 
             // Print elements
@@ -1355,6 +1499,7 @@ void SaharaRouting::OnChildResponseReceived() {
         }
         
         //r_Table.RunDijkstra(m_mainAddress);
+        r_Table.AddReceivedMissingVotePackets(sh.GetMissingVotePackets());
 
       SaharaHeader invAck;
       invAck.SetMessageType(sahara::SaharaHeader::SEND_MISSING_P2C_ACK);
@@ -1479,10 +1624,13 @@ void SaharaRouting::OnChildResponseReceived() {
         shAck.SetOriginIP(m_mainAddress);
         shAck.SetParentIP(m_parentIP);
 
-
-        shAck.SetReputation_O(m_rep);
+        shAck.SetReputation_O(r_Table.GetNodeReputation(m_mainAddress));
+        
+       
         shAck.SetGPS_O(m_gps);
         shAck.SetBattery_O(m_bat);
+
+        shAck.SetVotes(m_ss.GetMyVotesList());
 
         //SaharaHeader(m_mainAddress, true);
         Ptr<Packet> ackPacket = Create<Packet>();
@@ -1512,20 +1660,69 @@ void SaharaRouting::OnChildResponseReceived() {
   // every time a new round of SR is perfomed
   void
   SaharaRouting::ResetVariablesUpdate(){
-     NS_LOG_DEBUG(m_intNodeID << "[ResetVariablesUpdate] requested");
+    NS_LOG_DEBUG(m_intNodeID << "[ResetVariablesUpdate] requested");
+
+    // it seems a problem not related with the rouiting table
+    /*
+    RoutingTable r_Table2;
+    r_Table = r_Table2;
+
+     // inizialize file 
+      std::string nodeIDString = std::to_string(m_intNodeID);
+      std::string fileName = "historyRoutingTable_" + nodeIDString + ".txt";
+      r_Table.SetFile(fileName);
+      r_Table.SetMyNodeID(m_intNodeID);
+      */
+
+     /*
+     // cancel timers if running
+    m_auditTimeoutAckSRNEW.Cancel();
+    m_ackTimeoutAskToParentBF.Cancel();
+    m_auditTimeoutAckInverseSR.Cancel();
+    m_auditDijkstra.Cancel();
+    m_auditLookUpPacketQueue.Cancel();
+    m_SR.Cancel();
+
+   
+
+    // Assign functions to timers
+    m_auditDijkstra.SetFunction(&SaharaRouting::Dijkstra, this);
+    m_auditLookUpPacketQueue.SetFunction(&SaharaRouting::LookupQueue, this);
+    m_auditTimeoutAckSR.SetFunction (&SaharaRouting::NoChildren, this);
+    m_auditTimeoutAckSRNEW.SetFunction(&SaharaRouting::NoChildrenNew,this);
+    m_auditTimeoutAckInverseSR.SetFunction(&SaharaRouting::InverseSetRec, this);
+    m_SR.SetFunction(&SaharaRouting::StartTopologyBuilding, this);
+    m_ackTimeoutAskToParentBF.SetFunction(&SaharaRouting::AskToParentBF, this);
+    */
+
+
+    // reset statistic counters
+    m_packets_processed = 0;
+    m_tot_byte_processed = 0;
+
+    // reset the reset
+    m_reset = true;
+
+    // reset parent IP for the node
     m_parentIP = Ipv4Address("0.0.0.0");
+
+
     m_parentBF.clear();
     m_listBFChildren.clear();
     m_listSetRecDone.clear();
-    m_auditTimeoutAckSRNEW.Cancel();
-    m_ackTimeoutAskToParentBF.Cancel();
-    m_SRCompleted = false;
-    m_auditTimeoutAckInverseSR.Cancel();
-    m_reset = true; 
+
+    m_previousChildProcessed = true;
     m_alreadyDone = false;
+    m_SRCompleted = false;
+
+    while (!m_childRequestQueue.empty())
+    {
+        m_childRequestQueue.pop();
+    }
+
     r_Table.ResetVariables();
-    NS_LOG_DEBUG("RT size: " << r_Table.GetSizeRoutingTable());
     
+
     
   }
 

@@ -199,7 +199,7 @@ int main (int argc, char *argv[])
 
   // Create nodes
   NodeContainer nodes;
-  nodes.Create(24);
+  nodes.Create(36);
   
   //nodes.Get(1)->setm_nodeTestID(543);
   //uint32_t nodeID = nodes.Get(1)->getm_nodeTestID();

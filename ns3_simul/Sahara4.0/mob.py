@@ -1,63 +1,43 @@
 import csv
 import math
 
-# Define the number of nodes
-num_nodes = 30
-# Define the central node position
+# Definisci il numero totale di nodi e anelli
+num_nodes = 70
+num_rings = 5
 central_node = (400, 400)
 
-# Define the radius of the circle for placing nodes
-radius = 150
+# Definisci il raggio base e l'incremento del raggio per ogni anello
+base_radius = 33
+delta_radius = 33
 
-# Calculate the angle step (in radians) for the spoke nodes
-angle_step = 2 * math.pi / (num_nodes - 1)
+# Numero di nodi per anello, aumentando verso l'esterno
+nodes_per_ring = [5, 10, 15, 20, 19]  # Somma = 69 (70 meno il nodo centrale)
 
-# Define the file path
+# Verifica che il numero totale di nodi sia corretto
+assert sum(nodes_per_ring) == num_nodes - 1, "Il numero totale di nodi non corrisponde"
+
+# Definisci il percorso del file CSV
 csv_file_path = 'mobility.csv'
 
-# Open the CSV file for writing
+# Apri il file CSV per scrivere
 with open(csv_file_path, mode='w', newline='') as file:
     writer = csv.writer(file)
-    # Write the header
-   
+    # Scrivi l'intestazione (se necessario)
+    # writer.writerow(['NodeID', 'PosX', 'PosY', 'Radius', 'Omega'])
     
-    # Write the central node (nodeID 1)
-    writer.writerow([0, central_node[0], central_node[1]])
+    # Scrivi il nodo centrale (nodeID 0)
+    writer.writerow([0, central_node[0], central_node[1], 0, 0.0])
     
-    # Calculate positions for each spoke node
-    for i in range(0, (int(num_nodes/2)-1)):
-        # Calculate the angle for the current spoke node
-        angle = i * angle_step*2
-        
-        # Calculate the position for the spoke node
-        posX = central_node[0] + (radius/2 + radius/4) * math.cos(angle)
-        posY = central_node[1] + (radius/2 + radius/4) * math.sin(angle)
-        
-        # Write the spoke node (nodeID i+1) to the CSV file
-        omega = 0.00
-        writer.writerow([i + 1, posX, posY, (radius/2 + radius/4), omega])
+    nodeID = 1
+    for ring_index, nodes_in_current_ring in enumerate(nodes_per_ring):
+        ring_radius = base_radius + ring_index * delta_radius
+        angle_step = 2 * math.pi / nodes_in_current_ring
+        for node_index in range(nodes_in_current_ring):
+            angle = node_index * angle_step
+            posX = central_node[0] + ring_radius * math.cos(angle)
+            posY = central_node[1] + ring_radius * math.sin(angle)
+            omega = 0.0  # Puoi modificare omega se necessario
+            writer.writerow([nodeID, posX, posY, ring_radius, omega])
+            nodeID += 1
 
-    for i in range(int(num_nodes/2),( int(num_nodes/2) + int(num_nodes/4) )):
-        # Calculate the angle for the current spoke node
-        angle = i * angle_step*4
-        
-        # Calculate the position for the spoke node
-        posX = central_node[0] + radius/2 * math.cos(angle)
-        posY = central_node[1] + radius/2 * math.sin(angle)
-        
-        # Write the spoke node (nodeID i+1) to the CSV file
-        omega = -0.00
-        writer.writerow([i, posX, posY, radius/2, omega])
-
-    for i in range(int(num_nodes/2) + int(num_nodes/4), num_nodes):
-        # Calculate the angle for the current spoke node
-        angle = i * angle_step*4
-        
-        # Calculate the position for the spoke node
-        posX = central_node[0] + radius/4 * math.cos(angle)
-        posY = central_node[1] + radius/4 * math.sin(angle)
-        
-        # Write the spoke node (nodeID i+1) to the CSV file
-        omega = 0.00
-        writer.writerow([i, posX, posY, radius/4, omega])
-csv_file_path
+print("File CSV creato con successo in:", csv_file_path)

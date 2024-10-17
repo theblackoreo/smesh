@@ -34,6 +34,7 @@
 #include <string>
 #include <limits>
 #include <fstream>
+#include <deque> // Include deque
 
 /*
     This is an Alpha implementation of the Sahara routing protocol.
@@ -128,14 +129,14 @@ class SaharaRouting : public Ipv4RoutingProtocol
     Timer m_ackTimeoutWaitMissingFromChild;
 
     // default node info
-    uint16_t m_rep = 1;
+    uint16_t m_rep = 255;
     uint16_t m_gps = 10;
     uint16_t m_bat = 100;
     
     // modify this value to active flooding or set reconcilation, NOT BOTH at the same time
     bool m_flooding_ON = false;
     bool m_sr_ON = true;
-    bool m_sr_dynamic_ON = false;
+    bool m_sr_dynamic_ON = true;
 
     // millisecond to start
     uint16_t m_timeToStartFlooding = 2000;
@@ -147,7 +148,7 @@ class SaharaRouting : public Ipv4RoutingProtocol
     uint16_t m_frequencyDijskra = 65000;
     uint16_t m_frequencyLookUpPacketQueue = 65000;
     uint16_t m_startSR = 2000;
-    uint16_t m_frequencySR = 65000;
+    uint16_t m_frequencySR = 30000;
 
     uint16_t m_frequencyPrintRT = 6000;
 
@@ -178,10 +179,15 @@ class SaharaRouting : public Ipv4RoutingProtocol
     Timer m_auditTimeoutAckSRNEW; // timeout ack from children during set reconciliation
 
     // to test malicius node that drops packets
-    bool m_nodeDeletePackets = false;
-    uint16_t m_IDcompromisedNode = 23;
+    bool m_nodeDeletePackets = true;
+    uint16_t m_IDcompromisedNode = 17;
 
     SaharaSecurity m_ss = SaharaSecurity(r_Table);
+
+
+
+    // to test 
+    bool m_bfRequestInProgress = false;
     
     
   private:
@@ -242,6 +248,7 @@ class SaharaRouting : public Ipv4RoutingProtocol
 
     // Helper method to process the next request in the queue
     void ProcessNextChildRequest();
+    bool IsAlreadyEnqueued(SaharaHeader sh) ;
 
     // Method to handle acknowledgment/response from the child
     void OnChildResponseReceived();

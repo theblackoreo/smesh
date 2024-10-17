@@ -10,10 +10,18 @@ def read_throughput_values(file_path):
     throughput_values = []
     with open(file_path, 'r') as file:
         for line in file:
-            # Extract the numeric value from the line
-            value = float(line.strip().split(':')[1])
-            throughput_values.append(value)
+            # Split the line and check if it contains the expected format
+            parts = line.strip().split(':')
+            if len(parts) == 2:  # Ensure there are exactly 2 parts
+                try:
+                    value = float(parts[1])
+                    throughput_values.append(value)
+                except ValueError:
+                    print(f"Could not convert '{parts[1]}' to float. Skipping line.")
+            else:
+                print(f"Skipping malformed line: {line}")
     return throughput_values
+
 
 def calculate_mean_average_every_100(values):
     """Calculate mean average of values every 5 data points."""
@@ -21,7 +29,7 @@ def calculate_mean_average_every_100(values):
     num_points = len(values)
     
     for i in range(0, num_points, 5):
-        # Calculate the mean for the next 5 points (or remaining points)
+        # Calculate the mean for the next 10 points (or remaining points)
         mean_average = np.mean(values[i:i + 5])
         mean_averages.append(mean_average)
         

@@ -1,0 +1,92 @@
+
+
+LIGHT AND STRONG DECTION SYSTEM
+
+
+.STRONG DETECTION
+
+PACKET DROPPING ATTACK:
+
+- Implement packet dropping detection
+- Add SAHARA Consensus on votes before run Dijskra
+- Check results
+
+MAN IN THE MIDDLE ATTACK
+- Implement packet tempering (man in the middle) -> signatures are needed
+- Add Private / Public key for each node
+- Add signatures
+- Add signatures check using private key
+
+WORMHOLE ATTACK, BLACKHOLE ATTACK AND SYBIL ATTACK TO ANALYSE LATER
+
+-LIGHT DETECTION:
+
+PACKET DROPPING ATTACK:
+- Implemnent light packet dropping detection
+
+
+MAN IN THE MIDDLE ATTACK
+-
+
+Final: Put multiple nodes malicius and text network distruption
+
+
+
+
+Per evitare di fare comparazioni inutili, l'unica strategia è far si che i nodi quando mandano l'hello, mandano anche la lista dei voti per ogni loro neighbor firmata.
+la lista dei voti sarebbe una mappa nodeID, voto
+la mappa è firmata da un'unica firma così evitando di trasmettere firme complesse.
+
+Un'altra soluzione è non inviare i voti subito ma aspettare la fase di reconciliation ma come?  quando chiede ask_BF?????
+
+il child chiede bf al parent e gli manda la lista dei suoi voti come: IP:VOTE:SIGNATURE
+
+il parent dopo aver generato il BF aggiorna le tuple con i voti appena rivevuti dal child. 
+Manda il BF al child e il child manda al parent le tuple senza voti. 
+
+
+Ultima e forse più semplice strategia:
+Mandare lista voti nel messaggio di HELLO 
+quindi avremo:
+
+IP, Vote, Signature = 4 + 1 + 48 = 53 bytes per un voto
+10 neighors = 530 bytes
+
+Non vengono trasmessi i voti undefined
+
+quando un nodo riceve la lista dei voti che succede?
+riceve una tupla e vede se ip è presente nella lista e così via
+
+
+QUALE SOLUZIONE E' PIU' conveniente?
+
+- Trasmetto voti nell'HELLO (trasmetto lista voti + signatures e chi riceve deve aggiornare le sue tuple)
+
+- Trasmetto voti della backward set recociliation e nella forward. 
+
+
+IDEAAAA:
+nella risposta al messaaggio di HELLO quando faccio il broadcast segnalando il mio parent aggiungo voto e firma del parent!!!!!
+Mantengo una lista seperata per i voti e le firme che poi rientreranno della set reconciliation
+Devo cercare struttura dati efficiente per il conteggio
+tutti i voti, anche quelli undefined bisogna considerare
+PROBLEMA -> NUOVI BF
+
+- HO RIMOSSO CREAZIONE BF E CONTROLLO MISSING PER QUANTO RIGUARDA CAMPI VOTI
+
+
+NUOVA IDEA FORSE L'UNICA:
+
+Child chiede a parent BF e gli manda i voti che lui conosce,
+parent prende i voti e aggiorna le tuple, se complete si crea una chiave aggregata, crea BF 
+il BF del parent lo manda al child con anche i suoi voti, il child fa la stessa cosa, aggiorna tuple e poi manda tuple che mancano al parent
+
+così facendo quando si arriva alla root, dovrebbe avere tutte le tuple complete.... si spera 
+
+facendo così non abbimao problema dei nuovi BF ma chiediamo più overhead.
+
+
+
+
+IL PROBLEMA CHE HO E' CHE NON RICEVO I VOTI
+

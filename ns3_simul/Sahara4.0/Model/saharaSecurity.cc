@@ -1,11 +1,11 @@
 #include "saharaSecurity.h"
-
 #include "ns3/boolean.h"
 #include "ns3/inet-socket-address.h"
 #include "ns3/ipv4-header.h"
 #include "ns3/log.h"
 #include "ns3/names.h"
 #include "ns3/simulator.h"
+#include <algorithm>  
 #include "ns3/uinteger.h"
 #include "ns3/ipv4-l3-protocol.h" 
 #include "ns3/udp-header.h"
@@ -13,15 +13,13 @@
 #include "ns3/timer.h"
 #include <algorithm>
 #include "globalData.h"
-
-
-
 #include <iostream>
 #include <tuple>
 #include <string>
 #include <limits>
 #include <fstream>
 #include <vector>
+#include <cmath>
 
 /* 
 This is related to the second part of the project, when a packet is captured by a node the PromiscuousCallback function 
@@ -41,7 +39,7 @@ namespace sahara{
 
 SaharaSecurity::SaharaSecurity(RoutingTable& routingTable) : m_rTable(routingTable)
 {
-    
+    m_myNodeID = m_rTable.GetMyNodeID();
 }
 
 SaharaSecurity::~SaharaSecurity()
@@ -50,6 +48,8 @@ SaharaSecurity::~SaharaSecurity()
 
 
 
+// It is called when SAHARA Sync terminates but it is not totally correct in the real scenario 
+// because every node already knows the list of mac, id and ip of all other devices in the network. 
 void 
 SaharaSecurity::LoadMacIdMap() {
 
@@ -81,7 +81,8 @@ SaharaSecurity::LoadMacIdMap() {
 
 void
 SaharaSecurity::LoadLastBlock(){
-    std::ifstream infile("historyRoutingTable_3.txt");
+    /*
+    std::ifstream infile("historyRoutingTable_" + std::to_string(m_myNodeID) + ".txt");
     std::string line;
     std::vector<std::string> lastRoutingTable;
     bool isRoutingTable = false;
@@ -113,7 +114,27 @@ SaharaSecurity::LoadLastBlock(){
         std::cout << entry << std::endl;
     }
 
+    */
     
+
+std::vector<Ipv4Address> myNeigh = m_rTable.GetVectOfNeigByIP(m_myIP);
+std::map<Ipv4Address, uint16_t> mapIDRep = m_rTable.getMapIDRep();
+
+// Iterate over mapIDRep and copy its values to m_idVotes if the IP is in myNeigh
+for (const auto& entry : mapIDRep) {
+    Ipv4Address nodeIP = entry.first;
+    uint16_t value = entry.second;
+
+    // Use std::find to check if nodeIP is in myNeigh
+    if (std::find(myNeigh.begin(), myNeigh.end(), nodeIP) != myNeigh.end()) {
+        // Cast the value to double and insert into m_idVotes
+        m_idVotes[nodeIP] = std::make_pair(static_cast<double>(value), false);
+        NS_LOG_DEBUG("Node " << nodeIP << " Not casted " << value << " Casted value " << m_idVotes[nodeIP].first);
+    }
+}
+
+
+
 }
 
 bool 
@@ -158,8 +179,6 @@ SaharaSecurity::PromiscuousCallback(ns3::Ptr<ns3::NetDevice> device, ns3::Ptr<co
     if(port==256 || port==12345){}
 
     
-
-    
     switch (port)
     {
     case 256:
@@ -173,6 +192,8 @@ SaharaSecurity::PromiscuousCallback(ns3::Ptr<ns3::NetDevice> device, ns3::Ptr<co
         
         //NS_LOG_DEBUG("Standard message detected");
         // deviceIP, source (MAC), packet from, packet dest, nextHop
+
+        // function to verify is packet has been dropped
         VerifyDrop(packetCopy, deviceIP, sourceIP, ipv4Header.GetSource(), ipv4Header.GetDestination(), nextHopIP);
         break;
     
@@ -184,16 +205,7 @@ SaharaSecurity::PromiscuousCallback(ns3::Ptr<ns3::NetDevice> device, ns3::Ptr<co
 }
 
 
-
-void SaharaSecurity::VerifyDrop(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4Address detectedSourceIP, Ipv4Address sourceIP, Ipv4Address destIP, Ipv4Address nextHopIp) {
-    // deviceIP, source (MAC), detected source, packet from, packet dest,  nextHop
-   
-
-   
-    // I'm the next hop so ignore
-    if (deviceIP == nextHopIp) return;
-  
-    /*
+ /*
     A -> B -> C
     \   /
      \ /
@@ -257,25 +269,20 @@ void SaharaSecurity::VerifyDrop(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4A
     history -> packetID, source (vector of tuples)
     timers -> PacketID, nextHopID : timer
     */
+   
+
+void SaharaSecurity::VerifyDrop(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4Address detectedSourceIP, Ipv4Address sourceIP, Ipv4Address destIP, Ipv4Address nextHopIp) {
+    // deviceIP, source (MAC), detected source, packet from, packet dest,  nextHop
+   
+    // I'm the next hop so ignore
+    if (deviceIP == nextHopIp) {
+        UpdateNodeReputationPositive(detectedSourceIP);
+        return;
+    }
 
     //  + history.add(packetID, sourceIP)
-    std::tuple<uint32_t, Ipv4Address> temp(packet->GetUid(), sourceIP);
+    std::tuple<uint32_t, Ipv4Address> temp(packet->GetUid(), nextHopIp);
     m_historyPackets.push_back(temp);
-
-    // test
-    /*
-    NS_LOG_DEBUG("Status now:");
-    for (const auto& outerPair : m_mapTimers) {
-        std::cout << "Key: " << outerPair.first << std::endl;
-        for (const auto& innerPair : outerPair.second) {
-            std::cout << "    Inner Key: " << innerPair.first << std::endl;
-            // Printing the address of the timer object
-            std::cout << "    Timer Object Address: " << innerPair.second << std::endl;
-        }
-    }
-    */
-
-    // end test
 
     // check if in the timers I have a packetID linked with nextHopIP
     auto it = m_mapTimers.find(packet->GetUid());
@@ -290,6 +297,7 @@ void SaharaSecurity::VerifyDrop(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4A
                     m_mapTimers.erase(it);
                 }
                 NS_LOG_DEBUG(deviceIP << ": Timer canceled for packet " << packet->GetUid() << " and node " << detectedSourceIP);
+                UpdateNodeReputationPositive(detectedSourceIP);
                 return;
             }
         }
@@ -300,11 +308,12 @@ void SaharaSecurity::VerifyDrop(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4A
     else{
         
         //  check if I have in the history a packetID and nextHopIP
-        std::tuple<uint32_t, Ipv4Address> toSearch(packet->GetUid(), nextHopIp);
+        std::tuple<uint32_t, Ipv4Address> toSearch(packet->GetUid(), sourceIP);
         auto it = std::find(m_historyPackets.begin(), m_historyPackets.end(), toSearch);
         if (it != m_historyPackets.end()) {
             m_historyPackets.erase(it);
-            NS_LOG_DEBUG(deviceIP << ": Packet " << packet->GetUid() << " already received by " << nextHopIp);
+            NS_LOG_DEBUG(deviceIP << ": Packet " << packet->GetUid() << " already received with source " << sourceIP);
+            UpdateNodeReputationPositive(detectedSourceIP);
             return;
         } 
         else if(m_rTable.checkExistenceOfNegh(deviceIP, nextHopIp) && destIP != nextHopIp){
@@ -315,15 +324,17 @@ void SaharaSecurity::VerifyDrop(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4A
             m_mapTimers[packet->GetUid()][nextHopIp] = temp;
             NS_LOG_DEBUG(deviceIP << ": Timer created for packet " << packet->GetUid() << " and node (nextHop) " << m_nextHopIp);
         }
+       
         
     }
 
 }
 
+// packets has been not forwarded by a node before time expires
 void
 SaharaSecurity::DropTimeoutExpired(Ipv4Address deviceIP, Ipv4Address sourceIP, Ipv4Address nextHopIP){
 
-    NS_LOG_DEBUG("Timer expired, Device " << deviceIP << ": sourceIP " << sourceIP << ", node malicius " << nextHopIP);
+    NS_LOG_DEBUG("Timer expired, Device " << deviceIP << ": sourceIP " << sourceIP << ", node potentially malicius " << nextHopIP);
 
     // -1 on reputation of that node, return true if rep is still in range otherwise to be isolate
     if(UpdateNodeReputation(nextHopIP)){
@@ -404,9 +415,9 @@ SaharaSecurity::GenerateNewKey(Ipv4Address nextHopIP){
 }
 
 bool
-SaharaSecurity::UpdateNodeReputation(Ipv4Address nodeIP){
-      
-      uint16_t m_intNodeID;
+SaharaSecurity::UpdateNodeReputation(Ipv4Address detectedNodeIP){
+      /*
+      uint16_t detectedNodeID;
       std::ostringstream oss;
       nodeIP.Print(oss);
       std::string ip_string = oss.str();
@@ -415,28 +426,111 @@ SaharaSecurity::UpdateNodeReputation(Ipv4Address nodeIP){
           // Extract the substring after the last dot
           std::string numberAfterLastDot = ip_string.substr(lastDotPos + 1);
           std::istringstream iss(numberAfterLastDot);
-          iss>>m_intNodeID;
+          iss>>detectedNodeID;
       } else {
       }
-    
+    */
 
-    uint16_t m_rep;
-    uint16_t m_gps;
-    uint16_t m_bat;
-    uint16_t m_threshold = 150;
-
-    GlobalData::ReadDataFromFile(m_intNodeID,m_rep,m_gps,m_bat);
-
-    if((m_rep + 1) > m_threshold){
-        
-        return false;
-    }else{
-        m_rep = m_rep + 10;
-        GlobalData::WriteDataToFile(m_intNodeID,m_rep,m_gps,m_bat);
-        return true;
+    /* we start from previous reputation score and :
+    - for a good action -> reputation increase logaritmically
+    - for a bad action -> repuation decreases exponentially
+    */
+    auto it = m_idVotes.find(detectedNodeIP);
+    if (it == m_idVotes.end()) {
+        m_idVotes[detectedNodeIP].first = m_rTable.GetNodeReputation(detectedNodeIP);
     }
 
+    NS_LOG_DEBUG("detected node: " << detectedNodeIP << "status of vote before decrementing: "  << m_idVotes[detectedNodeIP].first);
+    m_idVotes[detectedNodeIP].first = m_idVotes[detectedNodeIP].first - (1 - 0.5)*m_idVotes[detectedNodeIP].first;
+    m_idVotes[detectedNodeIP].second = true;
+    
+    NS_LOG_DEBUG("detected node: " << detectedNodeIP << "status of vote: "  << m_idVotes[detectedNodeIP].first);
+
+    return true;
 }
+
+void
+SaharaSecurity::UpdateNodeReputationPositive(Ipv4Address detectedNodeIP){
+    auto it = m_idVotes.find(detectedNodeIP);
+    if (it == m_idVotes.end()) {
+        m_idVotes[detectedNodeIP].first = m_rTable.GetNodeReputation(detectedNodeIP);
+    }
+
+    NS_LOG_DEBUG("detected node: " << detectedNodeIP << "status of vote before INCREMENTING: "  << m_idVotes[detectedNodeIP].first);
+    m_idVotes[detectedNodeIP].first = m_idVotes[detectedNodeIP].first + (0.1)*m_idVotes[detectedNodeIP].first;
+    m_idVotes[detectedNodeIP].second = true;
+    
+    NS_LOG_DEBUG("detected node: " << detectedNodeIP << "status of vote: "  << m_idVotes[detectedNodeIP].first);
+    
+}
+SaharaHeader::VoteState 
+SaharaSecurity::GetVoteByNodeIP(Ipv4Address nodeIp){
+    /*
+    std::ostringstream oss1;
+    nodeIp.Print(oss1);
+    std::string ip_string1 = oss1.str();
+    size_t lastDotPos1 = ip_string1.find_last_of('.');
+    uint16_t nodeIDTuple1;
+    if (lastDotPos1 != std::string::npos) {
+        // Extract the substring after the last dot for the first IP
+        std::string numberAfterLastDot1 = ip_string1.substr(lastDotPos1 + 1);
+        std::istringstream iss1(numberAfterLastDot1);
+        iss1 >> nodeIDTuple1;
+    } else {
+        NS_LOG_DEBUG("error getting ID from first IP");
+    }
+    */
+
+    if(m_idVotes[nodeIp].first == 0 || m_idVotes[nodeIp].second == false){
+        return SaharaHeader::VoteState::Undefined;
+    }
+    else if(m_idVotes[nodeIp].first < 50){
+        return SaharaHeader::VoteState::Negative;
+    } 
+    else {
+        return SaharaHeader::VoteState::Positive;
+    }
+
+
+}
+
+SaharaHeader::VotePacket 
+SaharaSecurity::GetMyVotesList() {
+    std::list<SaharaHeader::Vote> myVoteList;
+    
+    for(auto t = m_idVotes.begin(); t != m_idVotes.end(); ++t) {
+        SaharaHeader::Vote toAdd;
+        toAdd.EvaluatedIP = t->first;
+
+        if(t->second.first == 0 || (t->second.second == false)) {
+            toAdd.vote = SaharaHeader::VoteState::Undefined;
+        } else if(t->second.first < 50) {
+            toAdd.vote = SaharaHeader::VoteState::Negative;
+        } else {
+            toAdd.vote = SaharaHeader::VoteState::Positive;
+        }
+
+        myVoteList.push_back(toAdd);
+    }
+
+    // Se non ci sono voti, restituire un pacchetto vuoto
+    if(myVoteList.empty()) {
+            
+        ns3::sahara::SaharaHeader::VotePacket votePacketNull(m_myIP, myVoteList, "");
+
+        return votePacketNull;
+    }
+
+    ns3::sahara::SaharaHeader::VotePacket votePacket(m_myIP, myVoteList, "miss_u_a_bit");
+    return votePacket;
+}
+
+
+void  
+SaharaSecurity::SetMyIP(Ipv4Address myIP){
+    m_myIP = myIP;
+}
+
 
 
 }

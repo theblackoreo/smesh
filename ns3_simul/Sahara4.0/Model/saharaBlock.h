@@ -9,6 +9,7 @@
 #include "ns3/ipv4-address.h"
 #include <limits>
 #include <fstream>
+#include "saharaPacket.h"
 
 
 namespace ns3
@@ -18,6 +19,7 @@ namespace ns3
 class Block {
 public:
     std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> m_routingTable;
+    
     std::string m_previousHash;
     std::string m_blockHash;
     CryptoPP::SHA256 m_hash; 
@@ -31,9 +33,10 @@ class Blockchain {
 public:
 
     std::vector<Block> m_chain;
+    std::map<Ipv4Address, uint16_t> m_mapIDRep;
 
     // Add a new block with the routing table
-    void addBlock(const std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> tuples);
+    void addBlock(const std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> tuples,  std::map<Ipv4Address, uint16_t> m_mapIDRep);
 
     // Store the blockchain to a file
     void storeToFile(std::ofstream &file);

@@ -17,17 +17,34 @@
 #include <limits>
 #include <fstream>
 #include "saharaBlock.h"
+#include "saharaPacket.h"
+
+#include <cstdint>
+
 
 
 namespace ns3{
 
 
+ 
+
 class RoutingTable{
 
 public:
+/*
+struct Vote {
+        Ipv4Address EvaluatedIP; // evaluated node IP
+        sahara::SaharaHeader::VoteState vote;          
+        std::string signature;   // signature of the evaluator
+    };
+*/
+
 	
 	RoutingTable();
     ~RoutingTable();
+
+ 
+
     RoutingTable& operator=(const RoutingTable& other);
 	
 	bool AddTuple(Ipv4Address originIP, Ipv4Address hop1IP, uint16_t reputation_O, uint16_t reputation_H, uint16_t GPS_O,
@@ -38,11 +55,18 @@ public:
 	
     std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t> getLastTupleTest();
 
+    //     void AddVote(const std::string& EvaluatedIP, const std::string& EvaluatorIP, int voto, const std::string& signature) {
+
+    void AddEvaluatorVotes(const Ipv4Address& EvaluatorIP, ns3::sahara::SaharaHeader::VotePacket votePacket);
+
+
+
 	bool CheckDuplicate(Ipv4Address originIP, Ipv4Address hop1IP);
 
     size_t GetSize();
 
     void PrintAll();
+    void PrintVotes();
 
     void DeleteAll();
     void CheckDifference();
@@ -62,15 +86,38 @@ public:
     void UpdateRoutingTable();
     std::vector<bool> GetBloomFilter();
 
-    void CreateDynamicBloomFilter(uint16_t sizeRTSender);
-    std::vector<bool> GetDynamicBloomFilterIfActive(uint16_t sizeRTSender);
+    void CreateDynamicBloomFilter(uint16_t sizeRTSender, bool isForward);
+    std::vector<bool> GetDynamicBloomFilterIfActive(uint16_t sizeRTSender, bool isForward);
 
     // to test
     void RunDijkstraNew(Ipv4Address myAddress);
     void ResetVariables();
     
     u_int16_t GetSizeRoutingTable();
-   
+
+    uint16_t m_myNodeID;
+    void SetMyNodeID(uint16_t id);
+    uint16_t GetMyNodeID();
+
+    uint16_t GetNodeReputation(Ipv4Address nodeIP);
+
+    // map rep into ID's and not ips
+    std::map<Ipv4Address, uint16_t> m_mapIDRep;
+    void GenerateRepMap();
+    std::map<Ipv4Address, uint16_t> getMapIDRep();
+
+   void SetVotes(Ipv4Address evaluatorIP, sahara::SaharaHeader::VotePacket votePacket);
+    std::vector<Ipv4Address> GetListVotesIP();
+
+     std::vector<ns3::sahara::SaharaHeader::VotePacket> GetMissingVotePackets(std::vector<Ipv4Address> ipReceived);
+      void AddReceivedMissingVotePackets(std::vector<ns3::sahara::SaharaHeader::VotePacket> listVotePackets);
+
+    std::vector<Ipv4Address> GetVectOfNeigByIP(Ipv4Address nodeIP);
+    void UpdateReputationLocally();
+    
+
+
+
 
 private:
     using TupleType = std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>;
@@ -96,14 +143,25 @@ private:
     using MapType = std::unordered_map<std::string, std::pair<std::shared_ptr<TupleType>, bool>>;
 
     MapType m_hashMap;
-    u_int32_t m_nTuplesWorstCase = 300;
+    u_int32_t m_nTuplesWorstCase = 6000;
     bool m_sr_dynamic_ON = false;
 
     double m_probabilityFP = 0.01;
     std::vector<bool> m_bloomFilter;
     u_int32_t m_optimalNumberBits;
     Blockchain m_blockchain;
+    bool m_firstIT = true;
+
+    ns3::sahara::SaharaHeader::VotePacket m_votes; 
+
+
+    // id is the evaluator
+   std::map<Ipv4Address, ns3::sahara::SaharaHeader::VotePacket> m_globalVotes;
+
    
+
+
+    
     // new disj
     std::map<Ipv4Address, std::vector<Ipv4Address>> m_shortestPaths;
 

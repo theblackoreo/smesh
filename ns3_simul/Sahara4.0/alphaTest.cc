@@ -27,6 +27,13 @@
 
 
 using namespace ns3;
+double msgSent;
+double msgReceived;
+std::map<uint32_t, EventId> packetTimers;
+int packetLost = 0;
+int totPackets = 0;
+std::map<uint32_t, double> mapMsgSent;
+
 
 void UpdateVelocity(Ptr<SaharaMobility> m, double radius, const Vector& center, double omega) {
  
@@ -94,25 +101,60 @@ void ReceivePacket(Ptr<Socket> socket) {
     Address from;
     Ipv4Address receiverIp = socket->GetNode()->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
 
-    while ((packet = socket->RecvFrom (from))) {
+    while ((packet = socket->RecvFrom(from))) {
+        msgReceived = Simulator::Now().GetSeconds();
+
+        double throughput = (packet->GetSize() * 8 / (msgReceived - mapMsgSent.at(packet->GetUid()))) / 100000;  // Mbps
+
+        auto it = packetTimers.find(packet->GetUid());
+        if (it != packetTimers.end()) {
+            // Cancel the timer associated with the packet
+            Simulator::Cancel(it->second);
+            packetTimers.erase(it);
+        }
+
+        NS_LOG_UNCOND("Throughput (Mbps): " << throughput);
+
         Ipv4Address senderIp = InetSocketAddress::ConvertFrom(from).GetIpv4();
-        NS_LOG_UNCOND(receiverIp << ": Received a packet from " << senderIp);
-        PrintPacketContent(packet);
-        // Handle the received packet as needed
+        // Log received packet information here if needed
+    }
+}
+void TimerCallback(uint32_t packetId, Ptr<Socket> socket, Ptr<Packet> pkt, uint16_t port) {
+    packetLost++;
+    if (socket->SendTo(pkt, 0, InetSocketAddress(Ipv4Address("10.1.1.24"), port)) != -1) {
+        msgSent = Simulator::Now().GetSeconds();
+        totPackets++;
+
+        EventId timerId;
+        timerId = Simulator::Schedule(MilliSeconds(100), &TimerCallback, packetId, socket, pkt, port);
+        packetTimers[packetId] = timerId;
+    } else {
+        std::cout << "Error sending packet" << std::endl;
     }
 }
 
-void sendMessage(Ptr<Socket> socket, uint16_t port){
-    std::string msg = "Hello World!";
-         NS_LOG_UNCOND("SENT:" << msg);
-      Ptr<Packet> packet = Create<Packet>((uint8_t*) msg.c_str(), msg.length() + 1);
 
-      // Send the packet in broadcast
-      if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address("10.1.1.5"), port)) != -1) {
-      } else {
-          std::cout << "error";
-      }
+void sendMessage(Ptr<Socket> socket, uint16_t port) {
+    Ptr<Packet> packet = Create<Packet>(1024);  // Create a packet of 1024 bytes
+
+    if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address("10.1.1.52"), port)) != -1) {
+        msgSent = Simulator::Now().GetSeconds();
+        mapMsgSent[packet->GetUid()] = msgSent;
+        totPackets++;
+
+        EventId timerId;
+        uint32_t packetId = packet->GetUid();
+        timerId = Simulator::Schedule(MilliSeconds(100), &TimerCallback, packetId, socket, packet, port);
+        packetTimers[packetId] = timerId;
+    } else {
+        std::cout << "Error sending packet" << std::endl;
+    }
 }
+void PrintPacketLost() {
+    NS_LOG_UNCOND("Total packets: " << totPackets);
+    NS_LOG_UNCOND("Packets lost: " << packetLost);
+}
+
 
 bool YourPromiscuousCallback(ns3::Ptr<ns3::NetDevice> device, ns3::Ptr<const ns3::Packet> packet, uint16_t protocol, const ns3::Address &source, const ns3::Address &destination, ns3::NetDevice::PacketType packetType)
 {
@@ -142,12 +184,12 @@ int main (int argc, char *argv[])
   // Enable logging
   //LogComponentEnable("UdpSocketImpl", LOG_LEVEL_ALL);
   
-  LogComponentEnable("saharaRoutingProtocol", LOG_LEVEL_ALL);
+  //LogComponentEnable("saharaRoutingProtocol", LOG_LEVEL_ALL);
   //LogComponentEnable("routingTable", LOG_LEVEL_ALL);
 
   //LogComponentEnable("OlsrRoutingProtocol", LOG_LEVEL_ALL);
   //LogComponentEnable("saharaSecurity", LOG_LEVEL_ALL);
-  //LogComponentEnable("saharaCrypto", LOG_LEVEL_ALL);
+  //LogComponentEnable("saharaBlock", LOG_LEVEL_ALL);
 
   //LogComponentEnable("saharaHeader", LOG_LEVEL_ALL);
   //LogComponentEnable("saharaQueue", LOG_LEVEL_ALL);
@@ -159,7 +201,7 @@ int main (int argc, char *argv[])
 
   // Create nodes
   NodeContainer nodes;
-  nodes.Create(25);
+  nodes.Create(70);
   
   //nodes.Get(1)->setm_nodeTestID(543);
   //uint32_t nodeID = nodes.Get(1)->getm_nodeTestID();
@@ -286,20 +328,22 @@ for (uint32_t i = 0; i < devices.GetN(); ++i)
 
   // Mobility of the nodes
   
-  
+  /*
   MobilityHelper mobility;
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
                                   "MinX", DoubleValue (0.0),
                                   "MinY", DoubleValue (0.0),
                                   "DeltaX", DoubleValue (33.0),
                                   "DeltaY", DoubleValue (33.0),
-                                  "GridWidth", UintegerValue (5),
+                                  "GridWidth", UintegerValue (6),
                                   "LayoutType", StringValue ("RowFirst"));
 
   mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
 
 
   mobility.Install (nodes);
+*/
+
     
   
 
@@ -319,7 +363,7 @@ for (uint32_t i = 0; i < devices.GetN(); ++i)
   internet.SetRoutingHelper(sahara);
   internet.Install(nodes);
   
-/*
+
   MobilityHelper mobility;
   mobility.SetMobilityModel ("ns3::SaharaMobility");
   mobility.Install (nodes); 
@@ -386,8 +430,7 @@ for (uint32_t i = 0; i < devices.GetN(); ++i)
 
     file.close();
 
-  */
-    
+  
   // suggestion from Pecorella
   // Ipv4ListRoutingHelper listRH;
   // SaharaHelper sahara;
@@ -425,7 +468,7 @@ for (uint32_t i = 0; i < devices.GetN(); ++i)
 
   
   // RECEIVERs socket
-  for(uint32_t i = 0; i < 15; i++){
+  for(uint32_t i = 0; i < 70; i++){
     Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (i), UdpSocketFactory::GetTypeId ());
     recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 12345)); // Listen on port 9
     recvSocket->SetRecvCallback (MakeCallback (&ReceivePacket));
@@ -433,18 +476,24 @@ for (uint32_t i = 0; i < devices.GetN(); ++i)
   }
 
     uint16_t port = 12345;
-    //for(uint16_t i=0; i < 3; i++){
-    Ptr<Socket> socket_sender = Socket::CreateSocket (nodes.Get (10), TypeId::LookupByName ("ns3::UdpSocketFactory"));
-    //InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), 9);
-    // socket_sender->SetAllowBroadcast(true);
+    Ptr<Socket> socket_sender = Socket::CreateSocket(nodes.Get(61), TypeId::LookupByName("ns3::UdpSocketFactory"));
 
-    // send packet disactivated
-   /*
-    for(int i = 0; i < 50; i++){
-        Simulator::Schedule(MilliSeconds(10000 + 1000*i), &sendMessage, socket_sender, port);
+   int i = 0;
+    for(i = 0; i < 10000; i++){
+      Simulator::Schedule(MilliSeconds(10000 + 100*i), &sendMessage, socket_sender, port);
     }
 
-*/
+    // Print packet lost information
+    //Simulator::Schedule(Seconds(28.0), &PrintPacketLost);
+
+    /*
+
+    for(int i = 0; i < 10; i++){
+        Simulator::Schedule(MilliSeconds(44000 + 1000*i), &sendMessage, socket_sender, port);
+    }
+    */
+
+
    
 
     

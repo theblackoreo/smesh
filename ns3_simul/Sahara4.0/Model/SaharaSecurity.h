@@ -43,8 +43,17 @@ public:
 
     void DropTimeoutExpired(Ipv4Address deviceIP, Ipv4Address sourceIP, Ipv4Address nextHopIP);
     bool UpdateNodeReputation(Ipv4Address nodeIP);
+    void UpdateNodeReputationPositive(Ipv4Address nodeIP);
     void GenerateNewKey(Ipv4Address maliciusIPToRemove);
 
+
+
+    // SaharaRouting needs this function to retreive the vote from security model
+    SaharaHeader::VoteState GetVoteByNodeIP(Ipv4Address nodeIp);
+
+    SaharaHeader::VotePacket GetMyVotesList(); 
+
+    void SetMyIP(Ipv4Address myIP);
 
 
 private:
@@ -56,12 +65,17 @@ private:
     Ipv4Address m_destIP;
     Ipv4Address m_fromIP;
     uint32_t m_packetID;
+    uint16_t m_myNodeID; 
+    Ipv4Address m_myIP;
 
 
 
 
     RoutingTable& m_rTable;
     std::map<std::string, std::string> m_mapMac;
+    // node ids and vote maps
+    std::map<Ipv4Address, std::pair<double, bool>> m_idVotes;
+
 
     // these are used to verify packet drop
     std::vector<std::tuple<uint32_t, Ipv4Address>> m_historyPackets;

@@ -29,6 +29,7 @@ void Block::calculateBlockHash() {
         uint16_t port4 = std::get<5>(tup);
         uint16_t port5 = std::get<6>(tup);
         uint16_t port6 = std::get<7>(tup);
+     
     
         blockContent << srcAddress << dstAddress << port1 << port2 << port3 << port4 << port5 << port6;
     }
@@ -64,11 +65,11 @@ void Block::calculateBlockHash() {
 }
 
 // Add a new block with the routing table
-void Blockchain::addBlock(const std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> tuples) {
+void Blockchain::addBlock(const std::vector<std::tuple<Ipv4Address,Ipv4Address,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t,uint16_t>> tuples,  std::map<Ipv4Address, uint16_t> recvMap) {
     // Create a new block
     Block newBlock;
     newBlock.m_routingTable = tuples;
-
+    m_mapIDRep = recvMap;
     // Set the previous hash
     if (!m_chain.empty()) {
         newBlock.m_previousHash = m_chain.back().m_blockHash;
@@ -97,16 +98,17 @@ void Blockchain::storeToFile(std::ofstream &file) {
             // Extract elements from the tuple
             const Ipv4Address& originIP = std::get<0>(tuple);
             const Ipv4Address& hop1IP = std::get<1>(tuple);
-            uint16_t repO = std::get<2>(tuple);
-            uint16_t repH = std::get<3>(tuple);
+            uint16_t repO = m_mapIDRep[originIP];
+            uint16_t repH = m_mapIDRep[hop1IP];
             uint16_t GPSO = std::get<4>(tuple);
             uint16_t GPSH = std::get<5>(tuple);
             uint16_t batteryO = std::get<6>(tuple);
             uint16_t batteryH = std::get<7>(tuple);
             
             
+            
             // write elements
-            file << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH << std::endl;
+            file << originIP << ", " << hop1IP << ", " << repO << ", " << repH << ", " << GPSO <<", " << GPSH <<", " << batteryO <<", " << batteryH<< std::endl;
         }
             
             file << "End of Block\n";
