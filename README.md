@@ -47,7 +47,7 @@ SAHARA is particularly well-suited for **swarm robotics** and **drone networks**
 
 ### SAHARA NS3 MODEL
 
-The Sahara NS3 Model is divided into different modules, each managing a specific part of the framework. The main module is *saharaRouting.c*, which serves as the core and integrates the use of the other sub-modules. Starting from the *saharaRouting.h* file, it is possible to enable or disable various framework features such as an improved version of Flooding, static and dynamic SAHARA modes, and the option to activate a specific malicious node. Additionally, many more functions can be configured within each sub-module file.
+The Sahara NS3 Model is divided into different modules, each managing a specific part of the framework. The main module is *saharaRouting.c* [here](https://github.com/theblackoreo/smesh/blob/main/ns3_simul/Sahara4.0/Model/saharaRouting.cc), which serves as the core and integrates the use of the other sub-modules. Starting from the *saharaRouting.h* file, it is possible to enable or disable various framework features such as an improved version of Flooding, static and dynamic SAHARA modes, and the option to activate a specific malicious node. Additionally, many more functions can be configured within each sub-module file.
 
 # SAHARA NS3 SIMULATIONS
 Custom simulations can be run by modifying one of the simulation files provided, which have been used to evaluate some statistics. These files are only examples and can be customized by including more functions, additional rules for message transmission, and/or methods to evaluate SAHARA performance.
