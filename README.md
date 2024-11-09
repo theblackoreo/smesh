@@ -1,5 +1,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/aiman-al-masoud/image_quality_assessment/blob/main/LICENSE)
 
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![C++]([https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54](https://img.shields.io/badge/-C++-blue?logo=cplusplus))
+
+
+
 # SAHARA: Secure Ad-Hoc Advanced Resilient Architecture
 
 ## Overview
