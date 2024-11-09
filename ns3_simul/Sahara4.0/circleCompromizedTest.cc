@@ -25,9 +25,6 @@
 #include "ns3/ackTag.h"
 
 
-
-
-
 using namespace ns3;
 
 double msgSent;
