@@ -115,8 +115,8 @@ struct Vote {
     std::vector<Ipv4Address> GetVectOfNeigByIP(Ipv4Address nodeIP);
     void UpdateReputationLocally();
     
-
-
+    bool IsIPInNeigh(Ipv4Address nodeIP1, Ipv4Address nodeIP2);
+    std::vector<Ipv4Address> GetPathFromSourceToDestination(Ipv4Address source, Ipv4Address dest);
 
 
 private:
@@ -158,12 +158,12 @@ private:
     // id is the evaluator
    std::map<Ipv4Address, ns3::sahara::SaharaHeader::VotePacket> m_globalVotes;
 
-   
-
-
-    
     // new disj
     std::map<Ipv4Address, std::vector<Ipv4Address>> m_shortestPaths;
+
+
+    // find another path varibles used in the function
+    std::map<Ipv4Address, std::vector<Ipv4Address>> m_shortestPaths_d;
 
 private:
  // updates

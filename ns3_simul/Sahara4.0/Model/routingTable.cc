@@ -471,6 +471,87 @@ namespace ns3
     }
 }
 
+    std::vector<Ipv4Address> 
+    RoutingTable::GetPathFromSourceToDestination(Ipv4Address sourceIP, Ipv4Address destinationIP) {
+
+    m_shortestPaths_d.clear();
+
+    std::map<Ipv4Address, uint16_t> distances;
+    std::map<Ipv4Address, Ipv4Address> previous;
+    std::priority_queue<std::pair<uint16_t, Ipv4Address>, std::vector<std::pair<uint16_t, Ipv4Address>>, std::greater<std::pair<uint16_t, Ipv4Address>>> pq;
+    std::map<Ipv4Address, std::vector<std::pair<Ipv4Address, uint16_t>>> topology; // nodeIP, vector of neighbors and cost
+
+    // Initialize distances
+    for (const auto& node : m_tuples) {
+        Ipv4Address src = std::get<0>(node);
+        Ipv4Address dest = std::get<1>(node);
+        uint16_t repO = GetNodeReputation(src); 
+        uint16_t repH = GetNodeReputation(dest);
+        uint16_t GPSO = std::get<4>(node);
+        uint16_t GPSH = std::get<5>(node);
+        uint16_t batteryO = std::get<6>(node);
+        uint16_t batteryH = std::get<7>(node);
+        
+        // Calculate the "cost" based on inverse reputation
+        uint16_t cost = (1000 / (repO + 1) + 1000 / (repH + 1)) / 2;  // Increment by 1 to avoid division by zero
+
+        topology[src].emplace_back(dest, cost);
+        topology[dest].emplace_back(src, cost);
+
+        if (distances.find(src) == distances.end()) {
+            distances[src] = (src == sourceIP) ? 0 : UINT16_MAX;
+            previous[src] = Ipv4Address();
+        }
+        if (distances.find(dest) == distances.end()) {
+            distances[dest] = (dest == sourceIP) ? 0 : UINT16_MAX;
+            previous[dest] = Ipv4Address();
+        }
+    }
+
+    pq.emplace(0, sourceIP);
+
+    // Dijkstra's algorithm
+    while (!pq.empty()) {
+        auto [currentDist, u] = pq.top();
+        pq.pop();
+
+        if (currentDist > distances[u]) continue;
+
+        for (const auto& [v, weight] : topology[u]) {
+            uint16_t newDist = currentDist + weight;
+            if (newDist < distances[v]) {
+                distances[v] = newDist;
+                previous[v] = u;
+                pq.emplace(newDist, v);
+            }
+        }
+
+        // Early exit if we've reached the destinationIP
+        if (u == destinationIP) {
+            break;
+        }
+    }
+
+    // Reconstruct the shortest path from sourceIP to destinationIP
+    std::vector<Ipv4Address> path;
+    if (distances[destinationIP] != UINT16_MAX) {
+        for (Ipv4Address at = destinationIP; at != sourceIP; at = previous[at]) {
+            path.push_back(at);
+        }
+        path.push_back(sourceIP);
+        std::reverse(path.begin(), path.end());
+    }
+
+    // Handle the case where sourceIP and destinationIP are neighbors
+    if (checkExistenceOfNegh(destinationIP, sourceIP)) {
+        path.clear();
+        path.push_back(sourceIP);
+        path.push_back(destinationIP);
+    }
+
+    return path; // Return the path from sourceIP to destinationIP
+}
+
 
 
     void
@@ -517,6 +598,37 @@ namespace ns3
             return false; // IP not found in any tuple
     }    
 
+    /*
+    std::vector<Ipv4Address>
+    RoutingTable::GetAllPathHops(Ipv4Address source, Ipv4Address dest){
+            
+            std::vector<Ipv4Address> path = m_shortestPaths.at(dest);
+
+            // Check if the destination is reachable from the source
+            if (m_shortestPaths.find(dest) == m_shortestPaths.end()) {
+                path.clear();
+                 // Destination is unreachable
+                path.push_back(Ipv4Address("0.0.0.0"));
+                
+            }
+
+            // Get the shortest path from source to destination
+            
+
+            // Ensure source is not the destination
+            if (path.size() < 2 || path.front() != source) {
+                // Unexpected path or source is the destination
+                 path.clear();
+                 // Destination is unreachable
+                path.push_back(Ipv4Address("0.0.0.0"));
+            }
+
+            // Return the next hop in the path
+            return path;
+            
+        }
+        */
+
     Ipv4Address RoutingTable::LookUpAddr(Ipv4Address source, Ipv4Address dest){
             
 
@@ -538,7 +650,6 @@ namespace ns3
             // Return the next hop in the path
             return path[1];
             
-          
 
         }   
 
@@ -749,11 +860,15 @@ bool RoutingTable::ProcessSetReconciliationDynamic(std::vector<bool> bfs) {
 
     for(const auto& it : m_mapIDRep){
         if(counter[it.first] < 0) {
-            m_mapIDRep[it.first] = m_mapIDRep[it.first] - 250;
+
+            m_mapIDRep[it.first] = m_mapIDRep[it.first] - 0.3*m_mapIDRep[it.first];
             std::cout << "DECREASED ON ROUTING TABLE REPUTATION OF " << it.first << " new: "<< m_mapIDRep[it.first] << std::endl;
         }
         else if(counter[it.first] > 0){
-            m_mapIDRep[it.first] = m_mapIDRep[it.first] + 1;
+            m_mapIDRep[it.first] = m_mapIDRep[it.first] + 0.1*m_mapIDRep[it.first] ;
+            if( m_mapIDRep[it.first] > 255){
+                m_mapIDRep[it.first] = 255;
+            }
             std::cout << "INCREASE ON ROUTING TABLE REPUTATION OF " << it.first << " new: "<< m_mapIDRep[it.first] << std::endl;
         }
     }
@@ -931,7 +1046,16 @@ bool RoutingTable::ProcessSetReconciliationDynamic(std::vector<bool> bfs) {
     return missingForParent;
 }
 
-
+    // check if nodeIP2 is in the nodeIP1 neighbors
+    bool
+    RoutingTable::IsIPInNeigh(Ipv4Address nodeIP1, Ipv4Address nodeIP2){
+        
+        std::vector vec = GetVectOfNeigByIP(nodeIP1);
+        
+        auto it = std::find(vec.begin(), vec.end(), nodeIP2);
+    
+        return it != vec.end();
+    }
     
 
     void

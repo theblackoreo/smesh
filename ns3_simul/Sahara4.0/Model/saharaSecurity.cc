@@ -20,6 +20,7 @@
 #include <fstream>
 #include <vector>
 #include <cmath>
+#include "ackTag.h"
 
 /* 
 This is related to the second part of the project, when a packet is captured by a node the PromiscuousCallback function 
@@ -185,16 +186,25 @@ SaharaSecurity::PromiscuousCallback(ns3::Ptr<ns3::NetDevice> device, ns3::Ptr<co
        // NS_LOG_DEBUG("Sahara Routing packet detected");
         break;
     
+    // DATA MESSAGES are sent trought this port
     case 12345:
+    /*
         NS_LOG_DEBUG("Promiscuous data packet received. Device IP: " << deviceIP << ", PacketID: "<< packet->GetUid() <<", source: " 
                             << sourceIP << ", port: " << port << ", packet from: " << ipv4Header.GetSource() << 
                                         ", packet dest: " << ipv4Header.GetDestination() << ", next hop (MAC): " << nextHopIP);
-        
+        */
         //NS_LOG_DEBUG("Standard message detected");
         // deviceIP, source (MAC), packet from, packet dest, nextHop
 
         // function to verify is packet has been dropped
-        VerifyDrop(packetCopy, deviceIP, sourceIP, ipv4Header.GetSource(), ipv4Header.GetDestination(), nextHopIP);
+
+
+        if(m_lightActive){
+            VerifyDropAndTemperLight(packetCopy, deviceIP, sourceIP, ipv4Header.GetSource(), ipv4Header.GetDestination(), nextHopIP);
+
+        }else{
+            VerifyDrop(packetCopy, deviceIP, sourceIP, ipv4Header.GetSource(), ipv4Header.GetDestination(), nextHopIP);
+        }
         break;
     
     default:
@@ -348,6 +358,25 @@ SaharaSecurity::DropTimeoutExpired(Ipv4Address deviceIP, Ipv4Address sourceIP, I
       
 }
 
+// used for light monitoring
+void
+SaharaSecurity::DropTimeoutExpiredLight(Ipv4Address sourceIP, Ipv4Address destIP){
+    
+    NS_LOG_DEBUG("Time expired for path -> from " << sourceIP << " To " << destIP);
+    UpdatePathReputation(sourceIP,destIP);
+}
+
+void
+SaharaSecurity::UpdatePathReputation(Ipv4Address sourceIP, Ipv4Address destIP){
+    
+    std::vector<Ipv4Address> vect = m_rTable.GetPathFromSourceToDestination(sourceIP, destIP);
+
+    // update node repuation negatively
+    for(auto& i: vect){
+        UpdateNodeReputation(i);
+    }
+}
+
 void
 SaharaSecurity::GenerateNewKey(Ipv4Address nextHopIP){
 
@@ -416,20 +445,7 @@ SaharaSecurity::GenerateNewKey(Ipv4Address nextHopIP){
 
 bool
 SaharaSecurity::UpdateNodeReputation(Ipv4Address detectedNodeIP){
-      /*
-      uint16_t detectedNodeID;
-      std::ostringstream oss;
-      nodeIP.Print(oss);
-      std::string ip_string = oss.str();
-      size_t lastDotPos = ip_string.find_last_of('.');
-      if (lastDotPos != std::string::npos) {
-          // Extract the substring after the last dot
-          std::string numberAfterLastDot = ip_string.substr(lastDotPos + 1);
-          std::istringstream iss(numberAfterLastDot);
-          iss>>detectedNodeID;
-      } else {
-      }
-    */
+    
 
     /* we start from previous reputation score and :
     - for a good action -> reputation increase logaritmically
@@ -465,21 +481,6 @@ SaharaSecurity::UpdateNodeReputationPositive(Ipv4Address detectedNodeIP){
 }
 SaharaHeader::VoteState 
 SaharaSecurity::GetVoteByNodeIP(Ipv4Address nodeIp){
-    /*
-    std::ostringstream oss1;
-    nodeIp.Print(oss1);
-    std::string ip_string1 = oss1.str();
-    size_t lastDotPos1 = ip_string1.find_last_of('.');
-    uint16_t nodeIDTuple1;
-    if (lastDotPos1 != std::string::npos) {
-        // Extract the substring after the last dot for the first IP
-        std::string numberAfterLastDot1 = ip_string1.substr(lastDotPos1 + 1);
-        std::istringstream iss1(numberAfterLastDot1);
-        iss1 >> nodeIDTuple1;
-    } else {
-        NS_LOG_DEBUG("error getting ID from first IP");
-    }
-    */
 
     if(m_idVotes[nodeIp].first == 0 || m_idVotes[nodeIp].second == false){
         return SaharaHeader::VoteState::Undefined;
@@ -506,9 +507,11 @@ SaharaSecurity::GetMyVotesList() {
             toAdd.vote = SaharaHeader::VoteState::Undefined;
         } else if(t->second.first < 50) {
             toAdd.vote = SaharaHeader::VoteState::Negative;
-        } else {
+        } else if(t->second.first > 250){
             toAdd.vote = SaharaHeader::VoteState::Positive;
-        }
+        }else{
+            toAdd.vote = SaharaHeader::VoteState::Undefined;
+            }
 
         myVoteList.push_back(toAdd);
     }
@@ -530,6 +533,97 @@ void
 SaharaSecurity::SetMyIP(Ipv4Address myIP){
     m_myIP = myIP;
 }
+
+
+/*
+Light monitoring system implementation
+
+The idea is when the source sends a packet, to add the packetID to a sort of history vector.
+When the ack comes back it has to cointain the packetID. 
+The source and source's neighbors will detected it and they will check two things
+1) if the ack (signed) really comes from the destination (signature not implemented but result is the same)
+2) if the first goes true they will stop the timer and repuation for the path will be increased. 
+If the ack has either been tempered or the ack is not received, the nodes will decrease the repuation of the entire path. 
+
+*/
+
+void SaharaSecurity::VerifyDropAndTemperLight(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4Address detectedSourceIP, Ipv4Address sourceIP, Ipv4Address destIP, Ipv4Address nextHopIp) {
+   
+    // source and (source and 1-hop neighbors) 
+        
+        /*
+        Idea is to store the message ID, start a timer, if ack is received stop timer and verify, otherwise all path is bad
+        */
+       
+       AckTag ackTag;
+        if (packet->PeekPacketTag(ackTag) && ackTag.IsAck()) {
+            if(deviceIP == destIP || (m_rTable.IsIPInNeigh(destIP, deviceIP) && m_rTable.IsIPInNeigh(destIP, detectedSourceIP))){
+
+                NS_LOG_UNCOND("Node " << deviceIP << " Captured ACK ID -> " << ackTag.GetAckId());
+
+                auto it = m_mapTimersLight.find(ackTag.GetAckId());
+
+                if (it != m_mapTimersLight.end()) {
+                    NS_LOG_DEBUG("Timer found ");
+                    it->second->Cancel();
+                    NS_LOG_DEBUG(deviceIP << ": Timer canceled for packet " << ackTag.GetAckId() << " and node " << sourceIP);
+                    UpdatePathReputationPositiveLight(sourceIP, destIP);
+                }
+
+                else {
+                    NS_LOG_DEBUG("Timer NOT found");
+                    //UpdatePathReputationPositiveLight(sourceIP, destIP);
+                }
+ 
+            
+         }
+        }
+        // data messages (non ack)
+        else{
+            if(deviceIP == sourceIP || (m_rTable.IsIPInNeigh(sourceIP, deviceIP) && m_rTable.IsIPInNeigh(sourceIP, detectedSourceIP))){
+
+                NS_LOG_DEBUG("Node: " << deviceIP << " I'm the source or the common 1-hop neighbor, real source is -> " << sourceIP);
+
+                // std::tuple<uint32_t, Ipv4Address> temp(packet->GetUid(), destIP);
+                //m_historyPackets.push_back(temp);
+
+                Timer* temp = new Timer;
+                temp->SetFunction(&SaharaSecurity::DropTimeoutExpiredLight, this);
+                temp->SetArguments(sourceIP, destIP);
+                temp->Schedule(MilliSeconds(m_timoutRetransmittingPacket));
+                m_mapTimersLight[packet->GetUid()] = temp;
+
+                NS_LOG_DEBUG(deviceIP << ": Timer created for packet " << packet->GetUid() << " and path -> from " << sourceIP << " to " << destIP);
+                    
+                    // Verifica che sia stato memorizzato
+                auto it = m_mapTimersLight.find(packet->GetUid());
+               
+            }
+
+
+    }
+}
+
+void
+SaharaSecurity::UpdatePathReputationPositiveLight(Ipv4Address sourceIP, Ipv4Address destIP){
+     std::vector<Ipv4Address> vect = m_rTable.GetPathFromSourceToDestination(sourceIP, destIP);
+
+    // update node repuation negatively
+    for(auto& i: vect){
+        UpdateNodeReputationPositive(i);
+    }
+}
+
+void
+SaharaSecurity::ResetVariables(){
+    m_idVotes.clear();
+    m_mapTimers.clear();
+    m_mapTimersLight.clear();
+}
+
+
+
+
 
 
 

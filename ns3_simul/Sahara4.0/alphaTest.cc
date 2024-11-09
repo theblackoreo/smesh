@@ -23,6 +23,7 @@
 #include "ns3/udp-header.h"
 #include <cryptopp/osrng.h>
 #include <cryptopp/secblock.h>
+#include "ns3/aodv-module.h"
 
 
 
@@ -137,7 +138,7 @@ void TimerCallback(uint32_t packetId, Ptr<Socket> socket, Ptr<Packet> pkt, uint1
 void sendMessage(Ptr<Socket> socket, uint16_t port) {
     Ptr<Packet> packet = Create<Packet>(1024);  // Create a packet of 1024 bytes
 
-    if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address("10.1.1.52"), port)) != -1) {
+    if (socket->SendTo(packet, 0, InetSocketAddress(Ipv4Address("10.1.1.5"), port)) != -1) {
         msgSent = Simulator::Now().GetSeconds();
         mapMsgSent[packet->GetUid()] = msgSent;
         totPackets++;
@@ -358,9 +359,12 @@ for (uint32_t i = 0; i < devices.GetN(); ++i)
   olsr.Set("MidInterval", TimeValue(Seconds(11.0)));
   olsr.Set("HnaInterval", TimeValue(Seconds(11.0)));
 
+  AodvHelper aodv;
+
+
   
 
-  internet.SetRoutingHelper(sahara);
+  internet.SetRoutingHelper(olsr);
   internet.Install(nodes);
   
 
@@ -468,7 +472,7 @@ for (uint32_t i = 0; i < devices.GetN(); ++i)
 
   
   // RECEIVERs socket
-  for(uint32_t i = 0; i < 70; i++){
+  for(uint32_t i = 0; i < 30; i++){
     Ptr<Socket> recvSocket = Socket::CreateSocket (nodes.Get (i), UdpSocketFactory::GetTypeId ());
     recvSocket->Bind (InetSocketAddress (Ipv4Address::GetAny (), 12345)); // Listen on port 9
     recvSocket->SetRecvCallback (MakeCallback (&ReceivePacket));
@@ -476,7 +480,7 @@ for (uint32_t i = 0; i < devices.GetN(); ++i)
   }
 
     uint16_t port = 12345;
-    Ptr<Socket> socket_sender = Socket::CreateSocket(nodes.Get(61), TypeId::LookupByName("ns3::UdpSocketFactory"));
+    Ptr<Socket> socket_sender = Socket::CreateSocket(nodes.Get(10), TypeId::LookupByName("ns3::UdpSocketFactory"));
 
    int i = 0;
     for(i = 0; i < 10000; i++){

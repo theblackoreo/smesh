@@ -59,10 +59,14 @@ cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/routingTableNew.cc /home/pa
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/globalData.h /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/globalData.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/ackTag.h /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/ackTag.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
+
+
 cd /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/
 
 clear
 cd scratch/
-python3 mob.py
+python3 mob_30.py
 cd ..
-./ns3 run scratch/alphaTest.cc --vis
+./ns3 run scratch/circleCompromizedTest.cc --vis

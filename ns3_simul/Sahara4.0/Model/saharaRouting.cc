@@ -497,12 +497,17 @@
       if(!GlobalData::IpAllowed(header.GetDestination())) return true;
       
       
-      if(m_nodeDeletePackets && m_IDcompromisedNode == m_intNodeID && Simulator::Now().GetSeconds() > 15 && Simulator::Now().GetSeconds() < 28 ){
+      if(m_nodeDeletePackets && m_IDcompromisedNode == m_intNodeID && ((Simulator::Now().GetSeconds() > 7 && Simulator::Now().GetSeconds() < 17)|| 
+      (Simulator::Now().GetSeconds() > 22 && Simulator::Now().GetSeconds() < 32) || 
+      (Simulator::Now().GetSeconds() > 37 && Simulator::Now().GetSeconds() < 47) ||
+      (Simulator::Now().GetSeconds() > 52 && Simulator::Now().GetSeconds() < 62) ||
+        (Simulator::Now().GetSeconds() > 67 && Simulator::Now().GetSeconds() < 77) ||
+         (Simulator::Now().GetSeconds() > 81 && Simulator::Now().GetSeconds() < 91))) {
         ns3::Ptr<ns3::UniformRandomVariable> rng = ns3::CreateObject<ns3::UniformRandomVariable>();
         rng->SetAttribute("Min", ns3::DoubleValue(0.0));
         rng->SetAttribute("Max", ns3::DoubleValue(100.0));
         double randomNumber = rng->GetValue();
-        if(randomNumber < 80){
+        if(randomNumber < 99){
           return false;
         }
       }
@@ -518,6 +523,8 @@
             return false;
           }
       }
+
+      
       
 
       //NS_LOG_DEBUG ("[RouteInput] Called");
@@ -1330,6 +1337,7 @@ void SaharaRouting::OnChildResponseReceived() {
         r_Table.GenerateRepMap();
          r_Table.UpdateFileHistory();
           Dijkstra();
+           m_ss.ResetVariables();
         m_ss.LoadMacIdMap();
         m_ss.LoadLastBlock();
         NS_LOG_DEBUG(m_intNodeID << " VOTES AFTER SET RECONCILIATION");
@@ -1389,6 +1397,7 @@ void SaharaRouting::OnChildResponseReceived() {
         r_Table.GenerateRepMap();
         r_Table.UpdateFileHistory();
         Dijkstra();
+        m_ss.ResetVariables();
           m_ss.LoadMacIdMap();
         m_ss.LoadLastBlock();
          NS_LOG_DEBUG(m_intNodeID << " VOTES AFTER SET RECONCILIATION");

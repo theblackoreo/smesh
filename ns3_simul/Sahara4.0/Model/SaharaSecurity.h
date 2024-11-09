@@ -40,10 +40,16 @@ public:
 
     // verify if node in charge to forward drops the packet
     void VerifyDrop(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4Address detectedSourceIP, Ipv4Address sourceIP, Ipv4Address destIP, Ipv4Address nextHopIp);
+    void VerifyDropAndTemperLight(Ptr<Packet> &packet, Ipv4Address deviceIP, Ipv4Address detectedSourceIP, Ipv4Address sourceIP, Ipv4Address destIP, Ipv4Address nextHopIp);
 
     void DropTimeoutExpired(Ipv4Address deviceIP, Ipv4Address sourceIP, Ipv4Address nextHopIP);
+    void DropTimeoutExpiredLight(Ipv4Address sourceIP, Ipv4Address destIP);
     bool UpdateNodeReputation(Ipv4Address nodeIP);
     void UpdateNodeReputationPositive(Ipv4Address nodeIP);
+    void UpdatePathReputationPositiveLight(Ipv4Address sourceIP, Ipv4Address destIP);
+
+    void UpdatePathReputation(Ipv4Address sourceIP, Ipv4Address destinationIP);
+
     void GenerateNewKey(Ipv4Address maliciusIPToRemove);
 
 
@@ -54,11 +60,12 @@ public:
     SaharaHeader::VotePacket GetMyVotesList(); 
 
     void SetMyIP(Ipv4Address myIP);
+    void ResetVariables();
 
 
 private:
 
-    uint16_t m_timoutRetransmittingPacket = 500;
+    uint16_t m_timoutRetransmittingPacket = 800;
     Ipv4Address m_deviceIP;
     Ipv4Address m_nextHopIp;
     Ipv4Address m_sourceIP;
@@ -68,7 +75,8 @@ private:
     uint16_t m_myNodeID; 
     Ipv4Address m_myIP;
 
-
+    // switch light vs strong
+    bool m_lightActive = true;
 
 
     RoutingTable& m_rTable;
@@ -80,6 +88,9 @@ private:
     // these are used to verify packet drop
     std::vector<std::tuple<uint32_t, Ipv4Address>> m_historyPackets;
     std::map<uint32_t, std::map<Ipv4Address, Timer*>> m_mapTimers; 
+
+    // used for ligh monitoring
+     std::map<uint32_t, Timer*> m_mapTimersLight; 
 
     
 

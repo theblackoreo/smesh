@@ -144,11 +144,11 @@ class SaharaRouting : public Ipv4RoutingProtocol
     uint16_t m_timeToStartPacketQueue = 20000;// it was 6000 default
 
     // millisecond to set up frequency
-    uint16_t m_frequencyFlooding = 65000;// max number is like 65000
-    uint16_t m_frequencyDijskra = 65000;
-    uint16_t m_frequencyLookUpPacketQueue = 65000;
+    uint16_t m_frequencyFlooding = 0;// max number is like 65000
+    uint16_t m_frequencyDijskra = 0;
+    uint16_t m_frequencyLookUpPacketQueue = 0;
     uint16_t m_startSR = 2000;
-    uint16_t m_frequencySR = 30000;
+    uint16_t m_frequencySR = 15000;
 
     uint16_t m_frequencyPrintRT = 6000;
 
