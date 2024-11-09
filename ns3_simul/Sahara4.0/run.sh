@@ -52,6 +52,8 @@ cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaSecurity.cc /home/par
 
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/nodeCompromizedTest.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/circleCompromizedTest.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
+cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/SquareTopologyTestPacketsBytes.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/scratch/
+
 
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/routingTableNew.h /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/routingTableNew.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
@@ -69,4 +71,4 @@ clear
 cd scratch/
 python3 mob_30.py
 cd ..
-./ns3 run scratch/circleCompromizedTest.cc --vis
+./ns3 run scratch/SquareTopologyTestPacketsBytes.cc --vis

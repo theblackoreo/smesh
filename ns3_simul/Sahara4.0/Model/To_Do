@@ -31,8 +31,6 @@ MAN IN THE MIDDLE ATTACK
 Final: Put multiple nodes malicius and text network distruption
 
 
-
-
 Per evitare di fare comparazioni inutili, l'unica strategia è far si che i nodi quando mandano l'hello, mandano anche la lista dei voti per ogni loro neighbor firmata.
 la lista dei voti sarebbe una mappa nodeID, voto
 la mappa è firmata da un'unica firma così evitando di trasmettere firme complesse.
@@ -84,9 +82,3 @@ il BF del parent lo manda al child con anche i suoi voti, il child fa la stessa 
 così facendo quando si arriva alla root, dovrebbe avere tutte le tuple complete.... si spera 
 
 facendo così non abbimao problema dei nuovi BF ma chiediamo più overhead.
-
-
-
-
-IL PROBLEMA CHE HO E' CHE NON RICEVO I VOTI
-

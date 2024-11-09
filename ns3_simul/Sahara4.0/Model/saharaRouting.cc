@@ -344,7 +344,7 @@
 
         m_auditFloodingTimer.Schedule (MilliSeconds (m_timeToStartFlooding + randomNumber*static_cast<double>(m_intNodeID)));
         m_auditDijkstra.Schedule (MilliSeconds (m_timeToStartDijskra + randomNumber*static_cast<double>(m_intNodeID)));
-        Simulator::Schedule(MilliSeconds(25000+ m_intNodeID), &SaharaRouting::PrintStatistics, this);
+        Simulator::Schedule(MilliSeconds(7000+ m_intNodeID), &SaharaRouting::PrintStatistics, this);
         
       }
 
@@ -354,7 +354,7 @@
         
         //Simulator::Schedule(MilliSeconds(12000), &SaharaRouting::StartTopologyBuilding, this);
 
-       Simulator::Schedule(MilliSeconds(50000+ m_intNodeID), &SaharaRouting::PrintStatistics, this);
+       Simulator::Schedule(MilliSeconds(7000+ m_intNodeID), &SaharaRouting::PrintStatistics, this);
 
         Simulator::Schedule(
     MilliSeconds(6000 + m_intNodeID),

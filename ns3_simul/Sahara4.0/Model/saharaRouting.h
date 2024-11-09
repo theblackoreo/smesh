@@ -179,7 +179,7 @@ class SaharaRouting : public Ipv4RoutingProtocol
     Timer m_auditTimeoutAckSRNEW; // timeout ack from children during set reconciliation
 
     // to test malicius node that drops packets
-    bool m_nodeDeletePackets = true;
+    bool m_nodeDeletePackets = false;
     uint16_t m_IDcompromisedNode = 17;
 
     SaharaSecurity m_ss = SaharaSecurity(r_Table);
