@@ -61,4 +61,4 @@ Contributions are welcome! Feel free to submit pull requests or open issues to i
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/theblackoreo/smesh/blob/main/LICENSE) file for details.
