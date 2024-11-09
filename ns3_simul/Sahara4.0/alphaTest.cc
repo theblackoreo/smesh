@@ -364,7 +364,7 @@ for (uint32_t i = 0; i < devices.GetN(); ++i)
 
   
 
-  internet.SetRoutingHelper(olsr);
+  internet.SetRoutingHelper(sahara);
   internet.Install(nodes);
   
 

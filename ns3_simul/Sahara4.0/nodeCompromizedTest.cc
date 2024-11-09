@@ -308,7 +308,7 @@ int main (int argc, char *argv[])
   olsr.Set("HnaInterval", TimeValue(Seconds(11.0)));
 
   
-  internet.SetRoutingHelper(olsr);
+  internet.SetRoutingHelper(sahara);
   internet.Install(nodes);
   
     /*

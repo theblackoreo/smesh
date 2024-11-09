@@ -37,9 +37,6 @@ cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaPacket.cc /home/paral
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaQueue.h /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaQueue.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 
-cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaSync.h /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
-cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaSync.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
-
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaBlock.h /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 cp /media/psf/iCloud/smesh/ns3_simul/Sahara4.0/Model/saharaBlock.cc /home/parallels/Downloads/ns-allinone-3.40/ns-3.40/src/sahara/model/
 
