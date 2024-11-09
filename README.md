@@ -1,3 +1,4 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/aiman-al-masoud/image_quality_assessment/blob/main/LICENSE)
 
 # SAHARA: Secure Ad-Hoc Advanced Resilient Architecture
 
